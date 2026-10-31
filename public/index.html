@@ -27,17 +27,57 @@
         }
         .container { max-width: 800px; margin: 0 auto; padding: 20px; }
         
-        /* 顶部导航 - 左侧语言选择器 */
-        header { border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-        .header-left { display: flex; align-items: center; gap: 12px; }
-        header h1 { margin: 0; font-size: 24px; color: var(--accent-color); cursor: pointer; }
-        /* 动态语言下拉框样式 */
-        #langSelect { background-color: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); padding: 5px 10px; border-radius: 6px; outline: none; font-size: 14px; cursor: pointer; max-width: 150px; }
-        #langSelect:focus { border-color: var(--accent-color); }
+        /* ================= 顶部导航（重构结构修复对齐） ================= */
+        header { 
+            border-bottom: 1px solid var(--border-color); 
+            padding-bottom: 15px; 
+            margin-bottom: 20px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap; /* 允许在极小屏幕下换行 */
+            gap: 15px; 
+        }
+        header h1 { 
+            margin: 0; 
+            font-size: 24px; 
+            color: var(--accent-color); 
+            cursor: pointer; 
+        }
         
-        header nav { display: flex; gap: 15px; }
-        header nav a { color: var(--text-muted); text-decoration: none; font-size: 15px; cursor: pointer; transition: color 0.3s; }
-        header nav a:hover, header nav a.active { color: var(--accent-color); font-weight: bold; }
+        /* 将导航和语言选择器放在一起 */
+        header nav { 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; /* 统一的间距 */
+            flex-wrap: wrap;
+        }
+        
+        /* 语言选择器样式，与其他链接完美对齐 */
+        #langSelect { 
+            background-color: var(--card-bg); 
+            border: 1px solid var(--border-color); 
+            color: var(--text-main); 
+            padding: 4px 8px; 
+            border-radius: 6px; 
+            outline: none; 
+            font-size: 14px; 
+            cursor: pointer; 
+            margin-right: 5px; /* 距离“首页”稍微多一点点间距 */
+        }
+        #langSelect:focus { border-color: var(--accent-color); }
+
+        header nav a { 
+            color: var(--text-muted); 
+            text-decoration: none; 
+            font-size: 15px; 
+            cursor: pointer; 
+            transition: color 0.3s; 
+        }
+        header nav a:hover, header nav a.active { 
+            color: var(--accent-color); 
+            font-weight: bold; 
+        }
 
         /* 页面切换控制 */
         .page-view { display: none; animation: fadeIn 0.3s ease-in-out; }
@@ -106,12 +146,13 @@
 <div class="container">
     <!-- 顶部导航 -->
     <header>
-        <div class="header-left">
-            <!-- 语言选择器：初始为空，由后端动态填充 -->
-            <select id="langSelect"></select>
-            <h1 onclick="switchPage('home')" data-i18n="siteTitle">链安快讯</h1>
-        </div>
+        <!-- 左侧 Logo -->
+        <h1 onclick="switchPage('home')" data-i18n="siteTitle">链安快讯</h1>
+        
+        <!-- 右侧导航与语言 -->
         <nav id="navMenu">
+            <!-- 语言选择器放在“首页”左边 -->
+            <select id="langSelect"></select>
             <a class="nav-link active" onclick="switchPage('home')" data-i18n="navHome">首页</a>
             <a class="nav-link" onclick="switchPage('events')" data-i18n="navEvents">安全事件</a>
             <a class="nav-link" onclick="switchPage('track')" data-i18n="navTrack">链上追踪</a>
@@ -201,11 +242,10 @@
     };
 
     let currentLang = 'en';
-    let currentLangDict = {}; // 当前语言的字典
-    let availableLangs = [];  // 后台传来的所有语言
-    let allCategories = [];   // 板块分类
+    let currentLangDict = {}; 
+    let availableLangs = [];  
+    let allCategories = [];   
 
-    // 分页与加载状态
     let currentPage = 1;
     const pageSize = 5;
     let homeAllLoaded = false;
@@ -215,7 +255,6 @@
     let eventsLoading = false;
     let currentFilter = 'all';
 
-    // ================= 语言检测与动态下拉框 =================
     async function determineLanguage() {
         const manual = localStorage.getItem('user_lang');
         if (manual) return manual;
@@ -234,17 +273,14 @@
         return 'en';
     }
 
-    // 动态构建下拉框
     function renderLangSelect() {
         const select = document.getElementById('langSelect');
         const activeLangs = availableLangs.filter(l => l.active);
         
-        // 拼接带国旗的选项
         select.innerHTML = activeLangs.map(l => 
             `<option value="${l.code}">${l.flag} ${l.name}</option>`
         ).join('');
 
-        // 选中当前语言（如果后台删除了当前语言，则回退到第一个）
         if (activeLangs.find(l => l.code === currentLang)) {
             select.value = currentLang;
         } else {
@@ -253,12 +289,9 @@
         }
     }
 
-    // 更新页面文字（完全读取后台字典，缺省则使用兜底）
     function updateText() {
         const langData = availableLangs.find(l => l.code === currentLang);
         const backendDict = langData?.dict || {};
-        
-        // 合并兜底字典和后台字典（后台优先）
         currentLangDict = Object.assign({}, fallbackDict['en'], fallbackDict[currentLang], backendDict);
 
         document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -270,21 +303,18 @@
             if (currentLangDict[key]) el.placeholder = currentLangDict[key];
         });
 
-        renderCategories(); // 语言变了，重新渲染分类
+        renderCategories();
     }
 
-    // ================= 核心初始化 =================
     async function init() {
         currentLang = await determineLanguage();
 
-        // 1. 拉取后台语言列表
         try {
             const res = await fetch('/api/languages');
             availableLangs = await res.json();
             renderLangSelect();
         } catch (e) { console.error('拉取语言失败', e); }
 
-        // 2. 绑定语言切换事件
         document.getElementById('langSelect').addEventListener('change', (e) => {
             currentLang = e.target.value;
             localStorage.setItem('user_lang', currentLang);
@@ -292,15 +322,11 @@
             resetAndReload();
         });
 
-        // 3. 拉取分类并渲染
         await fetchCategories();
-        
-        // 4. 初始化文字和文章
         updateText();
         resetAndReload();
     }
 
-    // ================= 分类获取与渲染 =================
     async function fetchCategories() {
         try {
             const res = await fetch('/api/categories');
@@ -315,14 +341,12 @@
         let html = `<div class="filter-tab ${currentFilter === 'all' ? 'active' : ''}" onclick="filterEvents(this, 'all')">${currentLangDict.catAll || 'All'}</div>`;
         
         allCategories.forEach(c => {
-            // 根据当前语言选择分类名称
             const catName = currentLang === 'zh' ? c.name_zh : c.name_en;
             html += `<div class="filter-tab ${currentFilter === c.id ? 'active' : ''}" onclick="filterEvents(this, '${c.id}')">${catName}</div>`;
         });
         container.innerHTML = html;
     }
 
-    // ================= 页面路由与数据加载 =================
     function switchPage(pageId) {
         document.querySelectorAll('.page-view').forEach(el => el.classList.remove('active'));
         document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
@@ -358,7 +382,6 @@
         targetEl.insertAdjacentHTML('beforeend', html);
     }
 
-    // 重置页面状态（切换语言或分类时调用）
     function resetAndReload() {
         currentPage = 1; homeAllLoaded = false; homeLoading = false;
         eventsCurrentPage = 1; eventsAllLoaded = false; eventsLoading = false;
@@ -374,7 +397,6 @@
         }
     }
 
-    // --- 首页加载 ---
     async function loadHomeData() {
         if (homeLoading || homeAllLoaded) return;
         homeLoading = true;
@@ -404,7 +426,6 @@
         homeLoading = false;
     }
 
-    // --- 安全事件加载 ---
     function filterEvents(el, type) {
         document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
         el.classList.add('active');
@@ -445,7 +466,6 @@
         eventsLoading = false;
     }
 
-    // 滚动监听
     window.addEventListener('scroll', () => {
         const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
         const clientHeight = document.documentElement.clientHeight || document.body.clientHeight;
@@ -457,7 +477,6 @@
         }
     });
 
-    // ================= 悬浮检测窗逻辑 =================
     const toolDefault = document.getElementById('toolDefault');
     const toolLoading = document.getElementById('toolLoading');
     const toolResult = document.getElementById('toolResult');
@@ -511,7 +530,6 @@
         document.getElementById('walletAddress').value = '';
     }
 
-    // 启动
     document.addEventListener('DOMContentLoaded', init);
 </script>
 
