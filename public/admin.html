@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>后台管理 - 链安快讯</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .admin-form { background: var(--card-bg); padding: 20px; border-radius: 8px; margin-bottom: 30px; }
+        .admin-form input, .admin-form textarea, .admin-form select { width: 100%; box-sizing: border-box; margin-bottom: 15px; padding: 10px; background: #0d1117; border: 1px solid var(--border-color); color: white; border-radius: 4px; }
+        .admin-table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .admin-table th, .admin-table td { border: 1px solid var(--border-color); padding: 10px; text-align: left; }
+        .admin-table th { background: #21262d; }
+        .btn-danger { background: var(--danger-color); color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        .btn-primary { background: var(--accent-color); color: black; border: none; padding: 10px 20px; font-weight: bold; border-radius: 4px; cursor: pointer; }
+    </style>
+</head>
+<body style="padding-bottom: 50px;"> <!-- 后台不需要悬浮窗留白 -->
+    <div class="container" style="max-width: 1000px;">
+        <header>
+            <h1>文章管理后台</h1>
+            <nav><a href="/">返回前台首页</a></nav>
+        </header>
+
+        <!-- 发布新文章 -->
+        <div class="admin-form">
+            <h3>发布新文章</h3>
+            <input type="text" id="title" placeholder="文章标题">
+            <select id="type">
+                <option value="normal">综合资讯</option>
+                <option value="hack">黑客攻击</option>
+                <option value="scam">钓鱼诈骗</option>
+            </select>
+            <input type="text" id="author" placeholder="作者名称">
+            <textarea id="desc" rows="3" placeholder="文章摘要（列表页显示）"></textarea>
+            <textarea id="content" rows="5" placeholder="文章完整内容（详情页显示）"></textarea>
+            <button class="btn-primary" id="submitBtn">发布文章</button>
+        </div>
+
+        <!-- 文章列表 -->
+        <h3>现有文章列表</h3>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>分类</th>
+                    <th>标题</th>
+                    <th>作者</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="admin-list"></tbody>
+        </table>
+    </div>
+
+    <script type="module" src="/js/admin.js"></script>
+</body>
+</html>
