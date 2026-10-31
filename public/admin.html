@@ -10,7 +10,6 @@
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <style>
-    /* 彻底修复颜色问题 */
     :root { --cms-bg: #0b0e14; --cms-sidebar: #0f172a; --cms-card: #161b22; --cms-border: #30363d; --cms-text-main: #e6edf3; --cms-text-muted: #8b949e; --cms-accent: #f0b90b; --cms-input-bg: #0d1117; }
     html.light { --cms-bg: #f3f4f6; --cms-sidebar: #ffffff; --cms-card: #ffffff; --cms-border: #d1d5db; --cms-text-main: #111827; --cms-text-muted: #4b5563; --cms-accent: #2563eb; --cms-input-bg: #f9fafb; }
     * { cursor: default; } button, a, select, .menu-item, input[type="checkbox"], input[type="file"] { cursor: pointer !important; } input, textarea { cursor: text !important; }
@@ -141,7 +140,6 @@
                 </div>
             </div>
 
-            <!-- 追踪管理 -->
             <div id="tab-tracking" class="content-section">
                 <div class="card p-6 mb-6">
                     <h3 class="font-bold text-lg mb-4" style="color: var(--cms-text-main);">定时抓取配置</h3>
@@ -198,9 +196,19 @@
                 </div>
             </div>
 
+            <!-- 系统设置 (包含描述配置) -->
             <div id="tab-settings" class="content-section">
                 <div class="card p-6 max-w-2xl mb-6">
                     <h3 class="font-bold text-lg mb-4" data-i18n="settingsTitle" style="color: var(--cms-text-main);">语言与翻译配置</h3>
+                    
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">检测窗描述文本 (中文)</label>
+                            <p class="text-xs text-blue-500 mb-2">保存时会自动调用 DeepL 将其翻译为所有启用的语言。</p>
+                            <textarea id="toolDescZh" class="input" rows="3" placeholder="例如：* 本模块为前端安全演示UI..."></textarea>
+                        </div>
+                    </div>
+
                     <div class="flex items-center justify-between border-b pb-4 mb-4" style="border-color: var(--cms-border);">
                         <div>
                             <div class="font-bold" data-i18n="autoLang" style="color: var(--cms-text-main);">自动 IP 识别语言</div>
@@ -208,6 +216,7 @@
                         </div>
                         <input type="checkbox" id="autoLangSwitch" class="w-5 h-5" style="accent-color: var(--cms-accent);">
                     </div>
+
                     <div class="space-y-4 mb-6">
                         <div>
                             <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">DeepL API Key 1 (主)</label>
