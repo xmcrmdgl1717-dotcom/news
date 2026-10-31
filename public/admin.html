@@ -75,6 +75,7 @@
 
         <div class="flex-1 overflow-y-auto p-6" id="mainContent">
             
+            <!-- 0. 数据汇总 -->
             <div id="tab-dashboard" class="content-section active">
                 <div class="grid grid-cols-3 gap-6 mb-6">
                     <div class="card p-6 border-l-4" style="border-left-color: var(--cms-accent);">
@@ -85,6 +86,7 @@
                 </div>
             </div>
 
+            <!-- 1. 文章管理 -->
             <div id="tab-articles" class="content-section">
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     <div class="card p-6">
@@ -122,6 +124,7 @@
                 </div>
             </div>
 
+            <!-- 2. 板块管理 -->
             <div id="tab-categories" class="content-section">
                 <div class="card p-6 mb-6">
                     <h3 class="font-bold text-lg mb-4" data-i18n="addCategoryTitle" style="color: var(--cms-text-main);">添加新板块</h3>
@@ -140,6 +143,7 @@
                 </div>
             </div>
 
+            <!-- 3. 链上追踪管理 -->
             <div id="tab-tracking" class="content-section">
                 <div class="card p-6 mb-6">
                     <h3 class="font-bold text-lg mb-4" style="color: var(--cms-text-main);">定时抓取配置</h3>
@@ -165,6 +169,7 @@
                 </div>
             </div>
 
+            <!-- 4. 多语言管理 -->
             <div id="tab-languages" class="content-section">
                 <div class="card p-6 mb-6">
                     <h3 class="font-bold text-lg mb-4" data-i18n="addLangTitle" style="color: var(--cms-text-main);">添加新语言</h3>
@@ -183,6 +188,7 @@
                 </div>
             </div>
 
+            <!-- 5. 翻译汇总 -->
             <div id="tab-translogs" class="content-section">
                 <div class="grid grid-cols-2 gap-6 mb-6">
                     <div class="card p-6"><div class="text-sm font-bold" style="color: var(--cms-text-muted);">总翻译次数</div><div class="text-3xl font-bold text-blue-500" id="logTotalCount">0</div></div>
@@ -196,16 +202,18 @@
                 </div>
             </div>
 
-            <!-- 系统设置 (包含描述配置) -->
+            <!-- 6. 系统设置 -->
             <div id="tab-settings" class="content-section">
                 <div class="card p-6 max-w-2xl mb-6">
                     <h3 class="font-bold text-lg mb-4" data-i18n="settingsTitle" style="color: var(--cms-text-main);">语言与翻译配置</h3>
                     
                     <div class="space-y-4 mb-6">
+                        <!-- 替换为多语言动态容器 -->
                         <div>
-                            <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">检测窗描述文本 (中文)</label>
-                            <p class="text-xs text-blue-500 mb-2">保存时会自动调用 DeepL 将其翻译为所有启用的语言。</p>
-                            <textarea id="toolDescZh" class="input" rows="3" placeholder="例如：* 本模块为前端安全演示UI..."></textarea>
+                            <label class="block text-sm font-bold mb-2" style="color: var(--cms-text-muted);">检测窗描述文本 (多语言配置)</label>
+                            <div id="toolDescContainer" class="space-y-3 mb-4">
+                                <!-- JS 会在这里动态生成 -->
+                            </div>
                         </div>
                     </div>
 
