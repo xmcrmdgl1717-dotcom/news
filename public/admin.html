@@ -17,6 +17,8 @@
     .content-section.active { display: block; }
     .ql-toolbar { @apply bg-gray-800 border-slate-700; }
     .ql-container { @apply bg-white text-black border-slate-700; min-height: 300px; }
+    .modal { @apply fixed inset-0 bg-black/80 z-50 hidden items-center justify-center; }
+    .modal.active { display: flex; }
 </style>
 </head>
 <body class="h-screen flex overflow-hidden bg-[#0b0e14] text-gray-100">
@@ -32,10 +34,12 @@
     <aside class="w-64 border-r border-slate-700 flex flex-col bg-[#0f172a]">
         <div class="h-16 flex items-center px-6 font-bold text-xl text-[#f0b90b] border-b border-slate-700">ChainSafe CMS</div>
         <nav class="flex-1 py-4">
-            <div class="menu-item px-6 py-3 cursor-pointer active" onclick="switchTab('articles', this)">📝 文章管理</div>
-            <div class="menu-item px-6 py-3 cursor-pointer" onclick="switchTab('languages', this)">🌐 多语言管理</div>
-            <div class="menu-item px-6 py-3 cursor-pointer" onclick="switchTab('translogs', this)">📈 翻译汇总</div>
-            <div class="menu-item px-6 py-3 cursor-pointer" onclick="switchTab('settings', this)">⚙️ 系统设置</div>
+            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-slate-800 active" onclick="switchTab('dashboard', this)">📊 数据汇总</div>
+            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-slate-800" onclick="switchTab('articles', this)">📝 文章管理</div>
+            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-slate-800" onclick="switchTab('categories', this)">📁 板块管理</div>
+            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-slate-800" onclick="switchTab('languages', this)">🌐 多语言管理</div>
+            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-slate-800" onclick="switchTab('translogs', this)">📈 翻译汇总</div>
+            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-slate-800" onclick="switchTab('settings', this)">⚙️ 系统设置</div>
         </nav>
         <div class="p-4 border-t border-slate-700">
             <button onclick="logout()" class="w-full bg-red-900/30 text-red-400 py-2 rounded-lg">退出登录</button>
@@ -44,17 +48,34 @@
 
     <main class="flex-1 flex flex-col h-screen overflow-hidden">
         <header class="h-16 border-b border-slate-700 flex items-center px-6 bg-[#0f172a]">
-            <h2 class="text-lg font-bold" id="pageTitle">文章管理</h2>
+            <h2 class="text-lg font-bold" id="pageTitle">数据汇总</h2>
         </header>
 
         <div class="flex-1 overflow-y-auto p-6" id="mainContent">
             
-            <!-- 文章管理 -->
-            <div id="tab-articles" class="content-section active">
+            <!-- 0. 数据汇总 -->
+            <div id="tab-dashboard" class="content-section active">
+                <div class="grid grid-cols-3 gap-6 mb-6">
+                    <div class="card p-6 border-l-4 border-[#f0b90b]">
+                        <div class="text-sm text-gray-400 mb-1">总文章记录数（全语言）</div>
+                        <div class="text-3xl font-bold" id="statTotal">0</div>
+                    </div>
+                    <!-- 板块统计会动态填充在这里 -->
+                    <div id="categoryStats" class="col-span-2 grid grid-cols-2 gap-4"></div>
+                </div>
+            </div>
+
+            <!-- 1. 文章管理 -->
+            <div id="tab-articles" class="content-section">
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     <div class="card p-6">
                         <h3 class="font-bold mb-4 text-[#f0b90b]">发布新文章</h3>
                         <div class="space-y-4 mb-4">
+                            <!-- 新增：板块选择 -->
+                            <div>
+                                <label class="block text-xs text-gray-400 mb-1">所属板块</label>
+                                <select id="artType" class="input w-full"></select>
+                            </div>
                             <div class="border border-slate-700 p-3 rounded bg-[#0f172a]">
                                 <p class="text-xs text-gray-400 mb-2">发布语言（勾选后自动机翻）：</p>
                                 <div class="flex gap-4" id="articleLangCheckboxes"></div>
@@ -73,7 +94,26 @@
                 </div>
             </div>
 
-            <!-- 多语言管理 -->
+            <!-- 2. 板块管理 -->
+            <div id="tab-categories" class="content-section">
+                <div class="card p-6 mb-6">
+                    <h3 class="font-bold mb-4">添加新板块</h3>
+                    <div class="grid grid-cols-3 gap-3 mb-3">
+                        <input type="text" id="newCatId" placeholder="ID (如: defi)" class="input">
+                        <input type="text" id="newCatZh" placeholder="中文名 (如: DeFi安全)" class="input">
+                        <input type="text" id="newCatEn" placeholder="英文名 (如: DeFi Sec)" class="input">
+                    </div>
+                    <button onclick="addCategory()" class="bg-blue-600 px-6 py-2 rounded font-bold">添加板块</button>
+                </div>
+                <div class="card overflow-hidden">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-800"><tr><th class="p-4">ID</th><th class="p-4">中文名</th><th class="p-4">英文名</th><th class="p-4">操作</th></tr></thead>
+                        <tbody id="categoryList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 3. 多语言管理 -->
             <div id="tab-languages" class="content-section">
                 <div class="card p-6 mb-6">
                     <h3 class="font-bold mb-4">添加新语言</h3>
@@ -86,13 +126,13 @@
                 </div>
                 <div class="card overflow-hidden">
                     <table class="w-full text-left text-sm">
-                        <thead class="bg-gray-800"><tr><th class="p-4">代码</th><th class="p-4">名称</th><th class="p-4">状态</th></tr></thead>
+                        <thead class="bg-gray-800"><tr><th class="p-4">代码</th><th class="p-4">名称</th><th class="p-4">状态</th><th class="p-4">操作</th></tr></thead>
                         <tbody id="languageList"></tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- 翻译汇总 -->
+            <!-- 4. 翻译汇总 -->
             <div id="tab-translogs" class="content-section">
                 <div class="grid grid-cols-2 gap-6 mb-6">
                     <div class="card p-6"><div class="text-sm text-gray-400">总翻译次数</div><div class="text-3xl font-bold text-blue-500" id="logTotalCount">0</div></div>
@@ -106,7 +146,7 @@
                 </div>
             </div>
 
-            <!-- 系统设置 -->
+            <!-- 5. 系统设置 -->
             <div id="tab-settings" class="content-section">
                 <div class="card p-6 max-w-2xl mb-6">
                     <h3 class="font-bold text-lg mb-4">语言与翻译配置</h3>
@@ -116,14 +156,17 @@
                             <div class="font-bold">自动 IP 识别语言</div>
                             <div class="text-xs text-gray-500">开启后，用户首次访问将根据 IP 自动选择对应语言</div>
                         </div>
-                        <!-- 自动语言配置开关 -->
-                        <input type="checkbox" id="autoLangSwitch" class="w-5 h-5 accent-[#f0b90b] cursor-pointer" onchange="toggleAutoLang(this.checked)">
+                        <input type="checkbox" id="autoLangSwitch" class="w-5 h-5 accent-[#f0b90b] cursor-pointer">
                     </div>
 
                     <div class="space-y-4 mb-6">
                         <div>
-                            <label class="block text-sm text-gray-400 mb-1">DeepL API Key 1</label>
+                            <label class="block text-sm text-gray-400 mb-1">DeepL API Key 1 (主)</label>
                             <input type="text" id="deeplKey1" class="input w-full" placeholder="例如: xxxx:fx">
+                        </div>
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">DeepL API Key 2 (备用轮询)</label>
+                            <input type="text" id="deeplKey2" class="input w-full" placeholder="例如: xxxx:fx">
                         </div>
                     </div>
                     <button onclick="saveSettings()" class="bg-blue-600 px-6 py-2 rounded font-bold">保存配置</button>
@@ -132,6 +175,19 @@
 
         </div>
     </main>
+
+    <!-- 字典编辑弹窗 -->
+    <div id="editLangModal" class="modal">
+        <div class="card p-6 w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <h3 class="font-bold text-lg mb-4 text-[#f0b90b]">编辑语言字典 JSON</h3>
+            <input type="hidden" id="editLangCode">
+            <textarea id="editLangDict" class="input w-full flex-1 p-3 rounded font-mono text-sm mb-4" rows="15"></textarea>
+            <div class="flex gap-2 justify-end">
+                <button onclick="saveLangDict()" class="bg-blue-600 text-white px-6 py-2 rounded font-bold">保存</button>
+                <button onclick="document.getElementById('editLangModal').classList.remove('active')" class="bg-gray-700 text-white px-6 py-2 rounded font-bold">取消</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/js/admin.js"></script>
 </body>
