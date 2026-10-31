@@ -4,9 +4,8 @@ const path = require('path');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 
-// 模拟翻译函数，防止报错 (如果有真实的 translator.js 请替换)
+// 模拟翻译函数 (如果有真实的 translator.js 请替换)
 const translateWithPolling = async (texts, targetLang, sourceLang) => texts.map(t => `[${targetLang}] ${t}`);
-const describeError = (e) => e.message;
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,7 +24,6 @@ const DB_FILES = {
     tracking: path.join(DB_DIR, 'tracking.json')
 };
 
-// 初始字典
 const BASE_DICT = {
     siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪",
     loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据",
@@ -34,7 +32,7 @@ const BASE_DICT = {
     resSafe: "✅ 安全", resSafeDesc: "未发现风险。", resDanger: "❌ 高危警告", resDangerDesc: "疑似黑客地址！"
 };
 
-// 初始化
+// 初始化数据文件
 Object.keys(DB_FILES).forEach(key => {
     if (!fs.existsSync(DB_FILES[key])) {
         let initialData = [];
@@ -43,7 +41,6 @@ Object.keys(DB_FILES).forEach(key => {
             autoLang: true, 
             deeplKey1: '', 
             deeplKey2: '',
-            // 初始化检测窗多语言描述
             toolDesc: { 
                 zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成，不构成任何投资建议或法律依据。",
                 en: "* This is a frontend security demo UI. Results are randomly generated."
@@ -136,7 +133,7 @@ app.put('/api/admin/settings', auth, async (req, res) => {
             newSettings.toolDesc = descObj;
         } catch (e) {
             console.error('描述翻译失败:', e);
-            newSettings.toolDesc = { ...oldSettings.toolDesc, zh: zhDesc };
+            newSettings.toolDesc = { ...(oldSettings.toolDesc || {}), zh: zhDesc };
         }
     }
     
