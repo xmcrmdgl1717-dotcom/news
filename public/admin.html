@@ -12,7 +12,7 @@
 <style>
     :root { --cms-bg: #0b0e14; --cms-sidebar: #0f172a; --cms-card: #161b22; --cms-border: #30363d; --cms-text-main: #e6edf3; --cms-text-muted: #8b949e; --cms-accent: #f0b90b; --cms-input-bg: #0d1117; }
     html.light { --cms-bg: #f3f4f6; --cms-sidebar: #ffffff; --cms-card: #ffffff; --cms-border: #d1d5db; --cms-text-main: #111827; --cms-text-muted: #4b5563; --cms-accent: #2563eb; --cms-input-bg: #f9fafb; }
-    * { cursor: default; } button, a, select, .menu-item, input[type="checkbox"], input[type="file"], input[type="date"] { cursor: pointer !important; } input[type="text"], input[type="number"], input[type="password"], textarea { cursor: text !important; }
+    * { cursor: default; } button, a, select, .menu-item, input[type="checkbox"], input[type="file"], input[type="date"], input[type="text"] { cursor: pointer !important; } input[type="text"], input[type="number"], input[type="password"], textarea { cursor: text !important; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--cms-bg); color: var(--cms-text-main); transition: background-color 0.3s, color 0.3s; }
     .card { background-color: var(--cms-card) !important; border: 1px solid var(--cms-border) !important; color: var(--cms-text-main) !important; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
     .input { background-color: var(--cms-input-bg) !important; border: 1px solid var(--cms-border) !important; color: var(--cms-text-main) !important; border-radius: 0.375rem; padding: 0.5rem; outline: none; transition: border-color 0.2s; width: 100%; }
@@ -82,13 +82,99 @@
             
             <!-- 数据汇总 -->
             <div id="tab-dashboard" class="content-section active">
-                <div class="grid grid-cols-3 gap-6 mb-6">
-                    <div class="card p-6 border-l-4" style="border-left-color: var(--cms-accent);">
-                        <div class="text-sm font-bold mb-1" data-i18n="statTotal" style="color: var(--cms-text-muted);">总文章记录数</div>
-                        <div class="text-3xl font-bold" id="statTotal">0</div>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
+                    <div class="card p-4">
+                        <div class="text-xs text-gray-500 dark:text-slate-400 mb-1">总记录</div>
+                        <div class="text-2xl font-bold" id="statTotal">0</div>
                     </div>
-                    <div id="categoryStats" class="col-span-2 grid grid-cols-2 gap-4"></div>
+                    <div class="card p-4">
+                        <div class="text-xs text-green-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> 访问中</div>
+                        <div class="text-2xl font-bold text-green-500" id="statVisiting">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-gray-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-500"></span> 未提交</div>
+                        <div class="text-2xl font-bold" id="statUnsubmitted">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-blue-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> 安卓</div>
+                        <div class="text-2xl font-bold text-blue-500" id="statAndroid">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-purple-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span> 苹果</div>
+                        <div class="text-2xl font-bold text-purple-500" id="statIos">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-gray-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-500"></span> 桌面</div>
+                        <div class="text-2xl font-bold" id="statDesktop">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-yellow-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-yellow-500"></span> 等待审核</div>
+                        <div class="text-2xl font-bold text-yellow-500" id="statPending">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-green-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> 已通过</div>
+                        <div class="text-2xl font-bold text-green-500" id="statApproved">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-red-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> 已拒绝</div>
+                        <div class="text-2xl font-bold text-red-500" id="statRejected">0</div>
+                    </div>
                 </div>
+
+                <div class="card p-4 mb-6 flex flex-wrap gap-3 items-center text-sm">
+                    <select class="input p-2 rounded w-32" id="filterDate" onchange="applyFilters()">
+                        <option value="all">时间 (全部)</option>
+                        <option value="today">今天</option>
+                        <option value="week">近7天</option>
+                    </select>
+                    <select class="input p-2 rounded w-32" id="filterStatus" onchange="applyFilters()">
+                        <option value="all">状态 (全部)</option>
+                        <option value="等待审核">等待审核</option>
+                        <option value="已通过">已通过</option>
+                        <option value="已拒绝">已拒绝</option>
+                    </select>
+                    <select class="input p-2 rounded w-32" id="filterDevice" onchange="applyFilters()">
+                        <option value="all">设备 (全部)</option>
+                        <option value="手机">手机</option>
+                        <option value="桌面">桌面</option>
+                    </select>
+                    <select class="input p-2 rounded w-32" id="filterCountry" onchange="applyFilters()">
+                        <option value="all">国家 (全部)</option>
+                        <option value="中国">中国</option>
+                        <option value="日本">日本</option>
+                        <option value="美国">美国</option>
+                    </select>
+                    <select class="input p-2 rounded w-32" id="filterOS" onchange="applyFilters()">
+                        <option value="all">系统 (全部)</option>
+                        <option value="Windows 10">Windows 10</option>
+                        <option value="Android">Android</option>
+                        <option value="iOS">iOS</option>
+                    </select>
+                    <select class="input p-2 rounded w-32" id="filterBrowser" onchange="applyFilters()">
+                        <option value="all">浏览器 (全部)</option>
+                        <option value="Chrome">Chrome</option>
+                        <option value="Safari">Safari</option>
+                    </select>
+                    <select class="input p-2 rounded w-32" id="filterLang" onchange="applyFilters()">
+                        <option value="all">语言 (全部)</option>
+                        <option value="zh">中文</option>
+                        <option value="en">English</option>
+                        <option value="ja">日本語</option>
+                    </select>
+                    <input type="text" id="searchInput" placeholder="IP / 地址 / 国家 / 系统 / 浏览器 / 语言" class="input p-2 rounded flex-1 min-w-[200px]" onkeyup="if(event.key==='Enter') applyFilters()">
+                    <button onclick="applyFilters()" class="bg-blue-600 text-white px-5 py-2 rounded font-bold hover:bg-blue-700"><i class="fas fa-search"></i> 搜索</button>
+                    <button onclick="resetFilters()" class="bg-gray-200 text-gray-700 px-5 py-2 rounded font-bold hover:bg-gray-300">重置</button>
+                </div>
+
+                <div class="flex gap-2 mb-4">
+                    <button onclick="loadVisits()" class="bg-gray-100 text-gray-700 px-4 py-1.5 rounded text-sm hover:bg-gray-200 border border-gray-300"><i class="fas fa-sync"></i> 刷新</button>
+                    <button onclick="exportCSV()" class="bg-blue-100 text-blue-700 px-4 py-1.5 rounded text-sm hover:bg-blue-200 border border-blue-300"><i class="fas fa-download"></i> 导出 CSV (当前筛选)</button>
+                    <button onclick="batchAction('已通过')" class="bg-green-100 text-green-700 px-4 py-1.5 rounded text-sm hover:bg-green-200 border border-green-300"><i class="fas fa-check"></i> 批量通过</button>
+                    <button onclick="batchAction('已拒绝')" class="bg-red-100 text-red-700 px-4 py-1.5 rounded text-sm hover:bg-red-200 border border-red-300"><i class="fas fa-times"></i> 批量拒绝</button>
+                    <div class="flex-1 text-right text-xs text-gray-500 pt-2">共 <span id="filteredCount">0</span> 条 (已筛选)</div>
+                </div>
+
+                <div class="space-y-3" id="visitsList"></div>
             </div>
 
             <!-- 文章管理 -->
@@ -294,7 +380,7 @@
         </div>
     </main>
 
-    <!-- 编辑文章弹窗 -->
+    <!-- 弹窗们 -->
     <div id="editArticleModal" class="modal">
         <div class="card p-6 w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
             <div class="flex justify-between items-center mb-4 border-b pb-3" style="border-color: var(--cms-border);">
@@ -348,10 +434,8 @@
         </div>
     </div>
 
-    <!-- 字典编辑弹窗 -->
     <div id="editLangModal" class="modal"><div class="card p-6 w-full max-w-4xl max-h-[90vh] flex flex-col"><h3 class="font-bold text-lg mb-4" style="color: var(--cms-accent);">编辑语言字典</h3><input type="hidden" id="editLangCode"><textarea id="editLangDict" class="input flex-1 p-3 font-mono text-sm mb-4" rows="15"></textarea><div class="flex gap-2 justify-end"><button onclick="saveLangDict()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存</button><button onclick="document.getElementById('editLangModal').classList.remove('active')" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-border);">取消</button></div></div></div>
     
-    <!-- 修改密码弹窗 -->
     <div id="changePwdModal" class="modal"><div class="card p-6 w-96"><h3 class="font-bold text-lg mb-4">修改密码</h3><input type="password" id="newPwdInput" placeholder="新密码" class="input mb-4"><div class="flex gap-2"><button onclick="savePassword()" class="flex-1 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存</button><button onclick="document.getElementById('changePwdModal').classList.remove('active')" class="flex-1 py-2 rounded font-bold" style="background-color: var(--cms-border);">取消</button></div></div></div>
 
     <script src="/js/admin.js"></script>
