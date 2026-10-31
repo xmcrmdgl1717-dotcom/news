@@ -1,40 +1,131 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en" class="dark">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>链安快讯 - Web3安全资讯</title>
-    <link rel="stylesheet" href="/css/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChainSafe News</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+    :root { --bg-color: #0b0e14; --card-bg: #161b22; --text-main: #e6edf3; --accent-color: #f0b90b; }
+    body { background: var(--bg-color); color: var(--text-main); font-family: sans-serif; }
+    .news-card { background: var(--card-bg); border: 1px solid #30363d; transition: 0.2s; cursor: pointer; }
+    .news-card:hover { border-color: var(--accent-color); }
+</style>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1 onclick="window.location.reload()">链安快讯</h1>
-            <nav id="navMenu">
-                <a class="nav-link active" data-page="home">首页</a>
-                <a class="nav-link" data-page="events">安全事件</a>
-                <a class="nav-link" data-page="track">链上追踪</a>
+<body class="p-6">
+    <div class="max-w-4xl mx-auto">
+        <!-- Header -->
+        <header class="flex justify-between items-center pb-4 border-b border-gray-700 mb-6">
+            <div class="flex items-center gap-4">
+                <h1 class="text-2xl font-bold text-[#f0b90b]">ChainSafe</h1>
+                <!-- 语言选择器 (Logo左边/旁边) -->
+                <select id="langSelect" class="bg-[#161b22] border border-gray-600 text-sm rounded px-2 py-1 outline-none text-gray-300">
+                    <option value="zh">🇨🇳 简体中文</option>
+                    <option value="en">🇺🇸 English</option>
+                </select>
+            </div>
+            <nav class="text-sm font-medium text-gray-400 space-x-4">
+                <a href="#" class="text-[#f0b90b]">Home</a>
+                <a href="#">Security</a>
             </nav>
         </header>
 
-        <div id="page-home" class="page-view active"><div id="home-list"></div></div>
-        <div id="page-events" class="page-view">
-            <div class="filter-tabs">
-                <div class="filter-tab active" data-type="all">全部事件</div>
-                <div class="filter-tab" data-type="hack">黑客攻击</div>
-                <div class="filter-tab" data-type="scam">钓鱼诈骗</div>
-            </div>
-            <div id="events-list"></div>
-        </div>
-        <div id="page-track" class="page-view">
-            <div class="track-card">
-                <div class="track-header"><b>Lazarus Group 黑客</b><span class="track-tag">监控中</span></div>
-                <div class="track-address">0x098B716B8Aaf...</div>
-                <div class="track-desc">异动：将 1,200 ETH 转移至 Tornado Cash。</div>
-            </div>
-        </div>
+        <!-- 列表 -->
+        <div id="newsList" class="space-y-4"></div>
     </div>
 
-    <script type="module" src="/js/main.js"></script>
+    <script>
+        // 语言映射，用于页面文字翻译
+        const i18n = {
+            zh: { home: '首页', sec: '安全事件', loading: '正在加载...' },
+            en: { home: 'Home', sec: 'Security', loading: 'Loading...' }
+        };
+
+        // 1. 语言检测逻辑
+        async function determineLanguage() {
+            // a. 手动选择优先级最高
+            const manual = localStorage.getItem('user_lang');
+            if (manual) return manual;
+
+            // b. 检查是否开启了自动 IP 识别
+            try {
+                const res = await fetch('/api/settings');
+                const settings = await res.json();
+                if (settings.autoLang) {
+                    // 请求 IP 地理信息 (使用公共免费API)
+                    const ipRes = await fetch('https://ipapi.co/json/');
+                    const ipData = await ipRes.json();
+                    if (ipData.country_code === 'CN') return 'zh';
+                    if (ipData.country_code === 'TW' || ipData.country_code === 'HK') return 'zh';
+                }
+            } catch (e) { console.log('IP检测失败，使用设备语言'); }
+
+            // c. 设备/浏览器语言
+            if (navigator.language.startsWith('zh')) return 'zh';
+
+            // d. 默认英语
+            return 'en';
+        }
+
+        let currentLang = 'en';
+
+        async function init() {
+            currentLang = await determineLanguage();
+            
+            // 更新选择器 UI
+            const select = document.getElementById('langSelect');
+            if (select.querySelector(`option[value="${currentLang}"]`)) {
+                select.value = currentLang;
+            } else {
+                // 如果当前语言不在列表中，默认选英语
+                select.value = 'en';
+                currentLang = 'en';
+            }
+
+            // 监听手动切换
+            select.addEventListener('change', (e) => {
+                currentLang = e.target.value;
+                localStorage.setItem('user_lang', currentLang);
+                loadArticles();
+                updateText();
+            });
+
+            loadArticles();
+            updateText();
+        }
+
+        function updateText() {
+            const dict = i18n[currentLang] || i18n['en'];
+            document.querySelector('nav a:nth-child(1)').innerText = dict.home;
+            document.querySelector('nav a:nth-child(2)').innerText = dict.sec;
+        }
+
+        async function loadArticles() {
+            const list = document.getElementById('newsList');
+            list.innerHTML = `<div class="text-center py-10 text-gray-500">${i18n[currentLang].loading}</div>`;
+            
+            try {
+                const res = await fetch(`/api/articles?lang=${currentLang}`);
+                const articles = await res.json();
+                
+                if (articles.length === 0) {
+                    list.innerHTML = `<div class="text-center py-10 text-gray-500">No articles found.</div>`;
+                    return;
+                }
+
+                list.innerHTML = articles.map(a => `
+                    <div class="news-card p-4 rounded-lg" onclick="window.location.href='/article.html?id=${a.id}'">
+                        <div class="text-xs text-gray-500 mb-2">${new Date(a.time).toLocaleString()}</div>
+                        <h2 class="text-lg font-bold mb-2">${a.title}</h2>
+                        <p class="text-sm text-gray-400">${a.summary || ''}</p>
+                    </div>
+                `).join('');
+            } catch (e) {
+                list.innerHTML = `<div class="text-center py-10 text-red-500">Load failed.</div>`;
+            }
+        }
+
+        init();
+    </script>
 </body>
 </html>
