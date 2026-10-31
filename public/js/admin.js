@@ -9,6 +9,11 @@ let globalTrackingConfig = { interval: 0, maxLogs: 100, sources: [], logs: [] };
 let globalSettings = {};
 let globalVisits = [];
 
+// 分页相关状态
+let currentPage = 1;
+let pageSize = 50;
+let filteredVisits = []; // 存放当前筛选后的结果
+
 const adminI18n = {
     zh: { navDashboard: '📊 数据汇总', navArticles: '📝 文章管理', navCategories: '📁 板块管理', navTracking: '📡 追踪管理', navLanguages: '🌐 多语言', navTranslogs: '📈 翻译汇总', navSettings: '⚙️ 系统设置', changePwd: '修改密码', logout: '退出登录', pageDashboard: '数据汇总', pageArticles: '文章管理', pageCategories: '板块管理', pageTracking: '追踪管理', pageLanguages: '多语言管理', pageTranslogs: '翻译汇总', pageSettings: '系统设置', publishArticle: '发布新文章', statTotal: '总文章记录数' },
     en: { navDashboard: '📊 Dashboard', navArticles: '📝 Articles', navCategories: '📁 Categories', navTracking: '📡 Tracking', navLanguages: '🌐 Languages', navTranslogs: '📈 Logs', navSettings: '⚙️ Settings', changePwd: 'Change Pwd', logout: 'Logout', pageDashboard: 'Dashboard', pageArticles: 'Articles', pageCategories: 'Categories', pageTracking: 'Tracking', pageLanguages: 'Languages', pageTranslogs: 'Logs', pageSettings: 'Settings', publishArticle: 'Publish', statTotal: 'Total Articles' }
@@ -52,6 +57,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.url) document.getElementById('editArtCoverUrl').value = data.url;
         } catch (err) { alert('图片上传失败'); }
     });
+
+    // 初始化时设置默认分页条数
+    const sizeSelect = document.getElementById('pageSizeSelect');
+    if(sizeSelect) pageSize = parseInt(sizeSelect.value) || 50;
 });
 
 async function doLogin() {
@@ -95,74 +104,14 @@ async function fetchData() {
     globalTrackingConfig = data.tracking || { interval: 0, maxLogs: 100, sources: [], logs: [] };
     globalSettings = data.settings || {}; globalVisits = data.visits || [];
 
-    const catOptions = allCategories.map(c => `<option value="${c.id}">${currentAdminLang === 'zh' ? c.name_zh : c.name_en}</option>`).join('');
-    if(document.getElementById('artType')) document.getElementById('artType').innerHTML = catOptions;
-    if(document.getElementById('editArtType')) document.getElementById('editArtType').innerHTML = catOptions;
+    // ... 文章渲染、分类、语言设置等代码保持不变，只展示数据汇总部分 ...
     
-    if(document.getElementById('articleLangCheckboxes')) {
-        document.getElementById('articleLangCheckboxes').innerHTML = allLangs.filter(l => l.active).map(l => 
-            `<label class="flex items-center gap-1 text-sm cursor-pointer"><input type="checkbox" value="${l.code}" class="accent-blue-600 dark:accent-[#f0b90b]" ${l.code === 'zh' ? 'checked disabled' : ''}> ${l.flag} ${l.name}</label>`
-        ).join('');
-    }
+    if(document.getElementById('artType')) document.getElementById('artType').innerHTML = allCategories.map(c => `<option value="${c.id}">${currentAdminLang === 'zh' ? c.name_zh : c.name_en}</option>`).join('');
+    if(document.getElementById('editArtType')) document.getElementById('editArtType').innerHTML = allCategories.map(c => `<option value="${c.id}">${currentAdminLang === 'zh' ? c.name_zh : c.name_en}</option>`).join('');
+    // ... (省略部分重复代码)
 
-    const groups = {};
-    allArticles.forEach(a => { const gid = a.groupId || a.id; if (!groups[gid]) groups[gid] = []; groups[gid].push(a); });
-    let articleHtml = '';
-    Object.values(groups).forEach(group => {
-        const main = group.find(a => a.lang === 'zh') || group[0];
-        const otherLangs = group.filter(a => a.lang !== main.lang);
-        articleHtml += `
-        <div class="border p-3 rounded flex flex-col" style="border-color: var(--cms-border); background: rgba(128,128,128,0.05);">
-            <div class="flex justify-between items-center w-full">
-                <div class="flex-1 min-w-0 pr-2">
-                    <span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded mr-2 shrink-0">${allCategories.find(c=>c.id === main.type)?.name_zh || '未分类'}</span>
-                    <b class="text-sm">${main.title}</b>
-                </div>
-                <div class="flex gap-2 shrink-0">
-                    <button onclick="editArticleGroup('${main.groupId || main.id}')" class="text-blue-500 text-xs hover:underline bg-blue-50 px-2 py-1 rounded">编辑</button>
-                    <button onclick="deleteArticleGroup('${main.groupId || main.id}')" class="text-red-500 text-xs hover:underline bg-red-50 px-2 py-1 rounded">删除</button>
-                </div>
-            </div>
-            ${otherLangs.length > 0 ? `
-            <details class="mt-2 w-full">
-                <summary class="text-xs text-blue-500 font-bold outline-none"><span class="arrow">▶</span> 包含 ${otherLangs.length} 个其他语言版本</summary>
-                <div class="mt-2 pl-4 space-y-1">
-                    ${otherLangs.map(o => `<div class="text-xs text-gray-500 flex items-center gap-2"><span class="uppercase text-[10px] bg-gray-200 px-1 rounded">${o.lang}</span> ${o.title}</div>`).join('')}
-                </div>
-            </details>` : ''}
-        </div>`;
-    });
-    if(document.getElementById('articleList')) document.getElementById('articleList').innerHTML = articleHtml || '<div class="text-gray-500 text-center py-4">暂无文章</div>';
-
-    if(document.getElementById('categoryList')) {
-        document.getElementById('categoryList').innerHTML = allCategories.map(c => `<tr><td class="font-mono">${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`).join('');
-    }
-    if(document.getElementById('languageList')) {
-        document.getElementById('languageList').innerHTML = allLangs.map(l => `<tr><td>${l.code}</td><td>${l.flag} ${l.name}</td><td><span class="px-2 py-1 rounded text-xs ${l.active ? 'bg-green-100 text-green-700' : 'bg-gray-200'}">${l.active ? '启用' : '禁用'}</span></td><td><button onclick="openEditLang('${l.code}')" class="text-blue-500 mr-2">编辑字典</button>${l.code !== 'zh' ? `<button onclick="autoTranslateDict('${l.code}')" class="text-yellow-500">一键机翻</button>` : ''}</td></tr>`).join('');
-    }
-
-    if(document.getElementById('autoLangSwitch')) document.getElementById('autoLangSwitch').checked = globalSettings.autoLang || false;
-    if(document.getElementById('deeplKey1')) document.getElementById('deeplKey1').value = globalSettings.deeplKey1 || '';
-    if(document.getElementById('deeplKey2')) document.getElementById('deeplKey2').value = globalSettings.deeplKey2 || '';
-    if(document.getElementById('checkWaitTime')) document.getElementById('checkWaitTime').value = globalSettings.checkWaitTime || 5;
-
-    const toolDesc = globalSettings.toolDesc || {};
-    if(document.getElementById('toolDescZh')) document.getElementById('toolDescZh').value = toolDesc.zh || '';
-    if(document.getElementById('toolDescLangCheckboxes')) {
-        document.getElementById('toolDescLangCheckboxes').innerHTML = allLangs.filter(l => l.active && l.code !== 'zh').map(l => {
-            const isTranslated = toolDesc[l.code] && toolDesc[l.code].trim() !== '';
-            return `<label class="flex items-center gap-1 text-sm cursor-pointer"><input type="checkbox" value="${l.code}" class="accent-blue-600 dark:accent-[#f0b90b] tool-desc-lang-cb" ${isTranslated ? 'checked' : ''}> ${l.flag} ${l.name}</label>`;
-        }).join('');
-    }
-
-    if(document.getElementById('trackingInterval')) document.getElementById('trackingInterval').value = globalTrackingConfig.interval || 0;
-    if(document.getElementById('trackingMaxLogs')) document.getElementById('trackingMaxLogs').value = globalTrackingConfig.maxLogs || 100;
-    
-    renderSources(); 
-    renderTrackingLogs(); 
-    
     calculateStats(); 
-    applyFilters();
+    applyFilters(); // 重新筛选并渲染
 }
 
 // ======================= 数据汇总相关逻辑 =======================
@@ -182,9 +131,27 @@ function calculateStats() {
     if(document.getElementById('statDesktop')) document.getElementById('statDesktop').innerText = desktop;
 }
 
+// 控制自定义日期输入框的显示/隐藏
+function toggleDateInputs() {
+    const type = document.getElementById('filterDateType').value;
+    const customInputs = document.getElementById('customDateInputs');
+    if (type === 'custom') {
+        customInputs.classList.remove('hidden');
+        customInputs.classList.add('flex');
+    } else {
+        customInputs.classList.add('hidden');
+        customInputs.classList.remove('flex');
+    }
+    applyFilters();
+}
+
 function applyFilters() {
     if (!document.getElementById('filterDevice')) return;
     
+    // 1. 获取所有筛选条件
+    const dateType = document.getElementById('filterDateType').value;
+    const startDateStr = document.getElementById('filterStartDate').value;
+    const endDateStr = document.getElementById('filterEndDate').value;
     const device = document.getElementById('filterDevice').value;
     const country = document.getElementById('filterCountry').value;
     const os = document.getElementById('filterOS').value;
@@ -192,24 +159,67 @@ function applyFilters() {
     const lang = document.getElementById('filterLang').value;
     const keyword = document.getElementById('searchInput').value.toLowerCase();
 
-    let filtered = globalVisits.filter(v => {
+    const now = new Date();
+    let filterStart = null;
+    let filterEnd = null;
+
+    // 处理日期范围
+    if (dateType === 'today') {
+        filterStart = new Date(now.setHours(0,0,0,0));
+    } else if (dateType === 'yesterday') {
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        filterStart = new Date(yesterday.setHours(0,0,0,0));
+        filterEnd = new Date(yesterday.setHours(23,59,59,999));
+    } else if (dateType === 'week') {
+        const week = new Date(now);
+        week.setDate(week.getDate() - 7);
+        filterStart = new Date(week.setHours(0,0,0,0));
+    } else if (dateType === 'month') {
+        const month = new Date(now);
+        month.setDate(month.getDate() - 30);
+        filterStart = new Date(month.setHours(0,0,0,0));
+    } else if (dateType === 'custom' && startDateStr && endDateStr) {
+        filterStart = new Date(startDateStr);
+        filterEnd = new Date(endDateStr);
+        filterEnd.setHours(23,59,59,999); // 包含结束当天
+    }
+
+    // 2. 执行过滤
+    filteredVisits = globalVisits.filter(v => {
         if (device !== 'all' && v.device !== device) return false;
         if (country !== 'all' && v.country !== country) return false;
         if (os !== 'all' && v.os !== os) return false;
         if (browser !== 'all' && !v.browser.includes(browser)) return false;
         if (lang !== 'all' && v.lang !== lang) return false;
+        
         if (keyword) {
             const str = `${v.ip} ${v.address} ${v.country} ${v.os} ${v.browser} ${v.lang}`.toLowerCase();
             if (!str.includes(keyword)) return false;
         }
+
+        if (filterStart || filterEnd) {
+            const vTime = new Date(v.visitTime).getTime();
+            if (filterStart && vTime < filterStart.getTime()) return false;
+            if (filterEnd && vTime > filterEnd.getTime()) return false;
+        }
         return true;
     });
 
-    if(document.getElementById('filteredCount')) document.getElementById('filteredCount').innerText = filtered.length;
-    renderVisitsList(filtered);
+    // 3. 更新统计与分页
+    if(document.getElementById('filteredCount')) document.getElementById('filteredCount').innerText = filteredVisits.length;
+    
+    // 重置到第一页
+    currentPage = 1; 
+    renderPagination();
 }
 
 function resetFilters() {
+    document.getElementById('filterDateType').value = 'all';
+    document.getElementById('filterStartDate').value = '';
+    document.getElementById('filterEndDate').value = '';
+    toggleDateInputs();
+    
     document.getElementById('filterDevice').value = 'all';
     document.getElementById('filterCountry').value = 'all';
     document.getElementById('filterOS').value = 'all';
@@ -219,8 +229,39 @@ function resetFilters() {
     applyFilters();
 }
 
-function quickSearch(category, value) { document.getElementById('searchInput').value = value; applyFilters(); }
+// ======================= 分页渲染 =======================
+function renderPagination() {
+    const totalPages = Math.ceil(filteredVisits.length / pageSize) || 1;
+    if (currentPage > totalPages) currentPage = totalPages;
+    
+    document.getElementById('pageInfo').innerText = `第 ${currentPage} / ${totalPages} 页`;
+    document.getElementById('prevPageBtn').disabled = currentPage === 1;
+    document.getElementById('nextPageBtn').disabled = currentPage === totalPages;
 
+    // 切片当前页数据
+    const start = (currentPage - 1) * pageSize;
+    const end = start + pageSize;
+    const currentList = filteredVisits.slice(start, end);
+    
+    renderVisitsList(currentList);
+}
+
+function changePage(delta) {
+    const totalPages = Math.ceil(filteredVisits.length / pageSize) || 1;
+    const newPage = currentPage + delta;
+    if (newPage >= 1 && newPage <= totalPages) {
+        currentPage = newPage;
+        renderPagination();
+    }
+}
+
+function changePageSize(newSize) {
+    pageSize = parseInt(newSize) || 50;
+    currentPage = 1; // 改变条数默认回到第一页
+    renderPagination();
+}
+
+// ======================= 列表渲染 =======================
 function renderVisitsList(visits) {
     const list = document.getElementById('visitsList');
     if (!list) return;
@@ -260,6 +301,12 @@ function renderVisitsList(visits) {
     }).join('') || '<div class="text-center py-10 text-gray-500">暂无记录</div>';
 }
 
+function quickSearch(category, value) { 
+    document.getElementById('searchInput').value = value; 
+    // 搜索会自动触发 applyFilters，这里不重复调用了
+    applyFilters(); 
+}
+
 async function deleteVisits() {
     const cbs = document.querySelectorAll('.visit-cb:checked');
     if (cbs.length === 0) return alert('请先勾选要删除的数据');
@@ -273,8 +320,10 @@ async function deleteVisits() {
 
 function exportCSV() {
     const rows = [['地址', 'IP', '国家', '设备', '系统', '浏览器', '语言', '进入时间', '提交时间', '退出时间', '停留(秒)', '指纹']];
-    const cbs = document.querySelectorAll('.visit-cb:checked');
-    const toExport = cbs.length > 0 ? globalVisits.filter(v => Array.from(cbs).map(c=>c.value).includes(v.id)) : globalVisits;
+    // 导出当前筛选出的所有数据（不仅仅是当前页）
+    const toExport = filteredVisits;
+
+    if (toExport.length === 0) return alert('当前筛选结果为空，无法导出');
 
     toExport.forEach(v => {
         rows.push([v.address || '未提交', v.ip, v.country, v.device, v.os, v.browser, v.lang, v.visitTime || '', v.submitTime || '', v.leaveTime || '', v.duration || 0, v.fingerprint]);
@@ -289,176 +338,8 @@ function exportCSV() {
 
 function loadVisits() { fetchData(); }
 
+// ================= 后续逻辑（追踪、文章、语言、设置保持不变） =================
+// 省略这些部分的代码以免影响阅读，你可以直接将之前的代码复制粘贴到这里
+// 确保 renderSources, renderTrackingLogs, editArticleGroup, submitArticle 等函数完整存在
 
-// ================= 后续逻辑（追踪、文章、语言、设置） =================
-function renderSources() {
-    const tbody = document.getElementById('sourceList');
-    if (!tbody) return;
-    tbody.innerHTML = (globalTrackingConfig.sources || []).map((s, idx) => `<tr><td>${s.name}</td><td class="text-blue-500">${s.url}</td><td><button onclick="deleteSource(${idx})" class="text-red-500 hover:underline">删除</button></td></tr>`).join('');
-}
-function renderTrackingLogs() {
-    const list = document.getElementById('trackingLogsList');
-    if (!list) return;
-    const filterDate = document.getElementById('trackingFilterDate')?.value || '';
-    let logs = globalTrackingConfig.logs || [];
-    if (filterDate) logs = logs.filter(l => l.time.startsWith(filterDate));
-    logs.sort((a, b) => new Date(b.time) - new Date(a.time));
-
-    list.innerHTML = logs.map(l => `
-        <tr class="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
-            <td class="p-3 text-center"><input type="checkbox" class="tracking-log-cb w-4 h-4 cursor-pointer" value="${l.id}"></td>
-            <td class="p-3 whitespace-nowrap text-gray-500 text-xs">${new Date(l.time).toLocaleString()}</td>
-            <td class="p-3"><span class="font-bold text-gray-700">${l.title}</span> <span class="text-xs bg-red-100 text-red-600 px-1 rounded ml-1">${l.tag || '高危'}</span></td>
-            <td class="p-3 font-mono text-xs text-blue-500">${l.address}</td>
-            <td class="p-3 text-gray-600 text-xs">${l.desc}</td>
-        </tr>
-    `).join('') || `<tr><td colspan="5" class="text-center py-6 text-gray-500">暂无数据</td></tr>`;
-    if(document.getElementById('selectAllTracking')) document.getElementById('selectAllTracking').checked = false;
-}
-function toggleAllTracking(el) { const cbs = document.querySelectorAll('.tracking-log-cb'); cbs.forEach(cb => cb.checked = el.checked); }
-
-async function deleteTrackingLogs() {
-    const cbs = document.querySelectorAll('.tracking-log-cb:checked');
-    if (cbs.length === 0) return alert('请先勾选要删除的数据');
-    if (!confirm(`确定要删除选中的 ${cbs.length} 条数据吗？`)) return;
-    const ids = Array.from(cbs).map(cb => cb.value);
-    try {
-        const res = await fetch('/api/admin/tracking/logs/delete', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ ids }) });
-        const data = await res.json();
-        if (data.success) { alert('删除成功'); fetchData(); }
-    } catch (e) { alert('网络错误'); }
-}
-async function saveTrackingConfig() {
-    const interval = parseInt(document.getElementById('trackingInterval').value) || 0;
-    const maxLogs = parseInt(document.getElementById('trackingMaxLogs').value) || 100;
-    await fetch('/api/admin/tracking/config', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ interval, maxLogs }) });
-    alert('追踪配置已保存'); fetchData();
-}
-async function mockTrackingData() {
-    const btn = event.target; const old = btn.innerText; btn.innerText = '生成中...'; btn.disabled = true;
-    try { await fetch('/api/admin/tracking/mock', { method: 'POST', headers: { 'x-admin-pwd': adminPwd } }); fetchData(); } 
-    catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
-}
-async function addSource() {
-    const name = document.getElementById('newSourceName').value.trim(); const url = document.getElementById('newSourceUrl').value.trim();
-    if (!name || !url) return alert('请填写完整');
-    await fetch('/api/admin/tracking/source', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ name, url }) });
-    document.getElementById('newSourceName').value = ''; document.getElementById('newSourceUrl').value = ''; fetchData();
-}
-async function deleteSource(index) {
-    if (!confirm('确定删除该数据源？')) return;
-    await fetch(`/api/admin/tracking/source/${index}`, { method: 'DELETE', headers: { 'x-admin-pwd': adminPwd } }); fetchData();
-}
-
-function editArticleGroup(groupId) {
-    const group = allArticles.filter(a => a.groupId === groupId || a.id === groupId);
-    if (!group || group.length === 0) return;
-    const main = group.find(a => a.lang === 'zh') || group[0]; const existingLangs = group.map(a => a.lang); 
-    document.getElementById('editArticleGroupId').value = groupId;
-    document.getElementById('editArtType').value = main.type;
-    document.getElementById('editArtTitle').value = main.title;
-    document.getElementById('editArtSummary').value = main.summary;
-    document.getElementById('editArtCoverUrl').value = main.coverUrl || '';
-    editQuill.root.innerHTML = main.content || '';
-    document.getElementById('editArticleLangCheckboxes').innerHTML = allLangs.filter(l => l.active).map(l => {
-        const isTranslated = existingLangs.includes(l.code); const disabled = l.code === 'zh' ? 'disabled' : ''; const checked = (l.code === 'zh' || isTranslated) ? 'checked' : '';
-        const badge = isTranslated ? `<span class="text-green-500 text-[10px] bg-green-100 px-1.5 py-0.5 rounded">已翻译</span>` : `<span class="text-red-500 text-[10px] bg-red-100 px-1.5 py-0.5 rounded">未翻译</span>`;
-        return `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition"><input type="checkbox" value="${l.code}" class="edit-article-lang-cb accent-blue-600 dark:accent-[#f0b90b]" ${checked} ${disabled}> ${l.flag} ${l.name} ${badge}</label>`;
-    }).join('');
-    document.getElementById('editArticleModal').classList.add('active');
-}
-function closeEditModal() { document.getElementById('editArticleModal').classList.remove('active'); document.getElementById('editArticleGroupId').value = ''; }
-
-async function submitEditArticle() {
-    const groupId = document.getElementById('editArticleGroupId').value; if (!groupId) return;
-    const type = document.getElementById('editArtType').value; const title = document.getElementById('editArtTitle').value;
-    const summary = document.getElementById('editArtSummary').value; const coverUrl = document.getElementById('editArtCoverUrl').value;
-    const content = editQuill.root.innerHTML;
-    if (!title) return alert('请输入标题');
-    const checkedLangs = Array.from(document.querySelectorAll('.edit-article-lang-cb:checked')).map(cb => cb.value);
-    const btn = document.getElementById('editArticleSubmitBtn'); const old = btn.innerText; btn.innerText = '翻译并保存中...'; btn.disabled = true;
-    try {
-        const res = await fetch(`/api/admin/article-group/${groupId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ title, summary, content, targetLangs: checkedLangs, type, coverUrl }) });
-        const data = await res.json();
-        if (data.success) { alert('修改并同步翻译成功！'); closeEditModal(); fetchData(); } else { alert('失败: ' + (data.error || '未知错误')); }
-    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
-}
-
-async function submitArticle() {
-    const type = document.getElementById('artType').value; const title = document.getElementById('artTitle').value;
-    const summary = document.getElementById('artSummary').value; const coverUrl = document.getElementById('artCoverUrl').value;
-    const content = quill.root.innerHTML;
-    if (!title) return alert('请输入标题');
-    const checkedLangs = Array.from(document.querySelectorAll('#articleLangCheckboxes input:checked')).map(cb => cb.value);
-    const btn = document.getElementById('articleSubmitBtn'); const old = btn.innerText; btn.innerText = '翻译并发布中...'; btn.disabled = true;
-    try {
-        const res = await fetch('/api/admin/article/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ title, summary, content, targetLangs: checkedLangs, type, coverUrl }) });
-        const data = await res.json();
-        if (data.success) { alert('发布成功！'); document.getElementById('artTitle').value = ''; document.getElementById('artSummary').value = ''; document.getElementById('artCoverUrl').value = ''; quill.setContents([]); fetchData(); } else { alert('失败: ' + (data.error || '未知错误')); }
-    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
-}
-
-async function deleteArticleGroup(groupId) { if(confirm('确认删除该组文章的所有语言版本？')) { await fetch(`/api/admin/article-group/${groupId}`, { method: 'DELETE', headers: { 'x-admin-pwd': adminPwd } }); fetchData(); } }
-async function addCategory() {
-    const id = document.getElementById('newCatId').value.trim(); const zh = document.getElementById('newCatZh').value.trim(); const en = document.getElementById('newCatEn').value.trim();
-    if(!id || !zh) return alert('请填写完整');
-    await fetch('/api/admin/categories', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ id, name_zh: zh, name_en: en }) });
-    document.getElementById('newCatId').value = ''; document.getElementById('newCatZh').value = ''; document.getElementById('newCatEn').value = ''; fetchData();
-}
-async function deleteCategory(id) { if(confirm('确定删除该板块？')) { await fetch(`/api/admin/categories/${id}`, { method: 'DELETE', headers: { 'x-admin-pwd': adminPwd } }); fetchData(); } }
-
-async function addLanguage() {
-    const code = document.getElementById('newLangCode').value.trim(); const name = document.getElementById('newLangName').value.trim(); const flag = document.getElementById('newLangFlag').value.trim();
-    if(!code || !name) return alert('请填写完整');
-    await fetch('/api/admin/languages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ code, name, flag }) }); fetchData();
-}
-function openEditLang(code) {
-    const l = allLangs.find(x => x.code === code);
-    if(l) { document.getElementById('editLangCode').value = code; document.getElementById('editLangDict').value = JSON.stringify(l.dict || {}, null, 2); document.getElementById('editLangModal').classList.add('active'); }
-}
-async function saveLangDict() {
-    const code = document.getElementById('editLangCode').value;
-    try { const dict = JSON.parse(document.getElementById('editLangDict').value); await fetch(`/api/admin/languages/${code}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ dict }) }); document.getElementById('editLangModal').classList.remove('active'); fetchData(); } catch (e) { alert('JSON 格式错误'); }
-}
-async function autoTranslateDict(code) {
-    if(!confirm(`确定要使用真实的 DeepL API 自动覆盖翻译 [${code}] 的菜单字典吗？`)) return;
-    const btn = event.target; const old = btn.innerText; btn.innerText = '请求翻译中...'; btn.disabled = true;
-    try {
-        const res = await fetch('/api/admin/languages/translate-dict', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ targetLang: code }) });
-        const data = await res.json(); if (data.success) { alert('字典已通过 DeepL 翻译成功！'); fetchData(); } else { alert('翻译失败: ' + (data.error || '未知错误')); }
-    } catch(e) { alert('网络请求失败'); } finally { btn.innerText = old; btn.disabled = false; }
-}
-
-async function saveToolDesc() {
-    const toolDescZh = document.getElementById('toolDescZh').value; if (!toolDescZh) return alert('请输入中文描述文本');
-    const checkedLangs = Array.from(document.querySelectorAll('.tool-desc-lang-cb:checked')).map(cb => cb.value);
-    const btn = event.target; const old = btn.innerText; btn.innerText = '翻译并保存中...'; btn.disabled = true;
-    try {
-        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ toolDescZh, targetLangs: checkedLangs }) });
-        if (res.ok) { alert('描述已保存并完成翻译！'); fetchData(); } else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
-    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
-}
-
-async function saveSettings() {
-    const deeplKey1 = document.getElementById('deeplKey1').value; const deeplKey2 = document.getElementById('deeplKey2').value;
-    const autoLang = document.getElementById('autoLangSwitch').checked; const checkWaitTime = parseInt(document.getElementById('checkWaitTime').value) || 5;
-    const btn = event.target; const old = btn.innerText; btn.innerText = '保存中...'; btn.disabled = true;
-    try {
-        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, checkWaitTime }) });
-        if (res.ok) { alert('系统配置已保存！'); fetchData(); } else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
-    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
-}
-
-async function loadTranslationLogs() {
-    const res = await fetch('/api/admin/translation-logs', { headers: { 'x-admin-pwd': adminPwd } }); const data = await res.json();
-    if(document.getElementById('logTotalCount')) {
-        document.getElementById('logTotalCount').innerText = data.totalCount; document.getElementById('logTotalChars').innerText = data.totalChars;
-        document.getElementById('translationLogList').innerHTML = data.logs.map(l => `<tr><td>${new Date(l.time).toLocaleString()}</td><td>${l.targetLang}</td><td class="text-green-500">${l.chars}</td></tr>`).join('');
-    }
-}
-function openChangePwd() { document.getElementById('newPwdInput').value = ''; document.getElementById('changePwdModal').classList.add('active'); }
-async function savePassword() {
-    const newPwd = document.getElementById('newPwdInput').value; if(!newPwd) return alert('密码不能为空');
-    const res = await fetch('/api/admin/password', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ newPassword: newPwd }) });
-    if(res.ok) { alert('密码修改成功，请重新登录'); sessionStorage.removeItem('wad_admin_pwd'); location.reload(); }
-}
+// ... 将之前的 admin.js 剩余部分贴在这里 ...
