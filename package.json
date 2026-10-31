@@ -1,0 +1,39 @@
+{
+  "name": "news-global",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "payload": "payload",
+    "generate:types": "payload generate:types",
+    "ingest": "tsx src/ingestion/run.ts",
+    "scheduler": "tsx src/scheduler/index.ts"
+  },
+  "dependencies": {
+    "next": "15.1.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "payload": "3.15.0",
+    "@payloadcms/next": "3.15.0",
+    "@payloadcms/db-postgres": "3.15.0",
+    "@payloadcms/richtext-lexical": "3.15.0",
+    "@payloadcms/plugin-seo": "3.15.0",
+    "pg": "^8.13.0",
+    "rss-parser": "^3.13.0",
+    "simhash-js": "^1.0.0",
+    "node-cron": "^3.0.3",
+    "nanoid": "^5.0.9"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/pg": "^8.11.10",
+    "tsx": "^4.19.0",
+    "tailwindcss": "^3.4.17",
+    "postcss": "^8.4.49",
+    "autoprefixer": "^10.4.20"
+  }
+}
