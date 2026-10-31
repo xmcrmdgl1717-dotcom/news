@@ -5,20 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>链安快讯 - Web3安全资讯</title>
     <style>
-        /* ================= 基础变量与重置 ================= */
         :root {
             --bg-color: #0b0e14; --card-bg: #161b22; --text-main: #e6edf3; --text-muted: #8b949e;
             --accent-color: #f0b90b; --danger-color: #ff4d4f; --safe-color: #52c41a; --border-color: #30363d;
         }
         * { box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; line-height: 1.6;
-            padding-bottom: 240px; overflow-x: hidden;
-        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; line-height: 1.6; padding-bottom: 240px; overflow-x: hidden; }
         .container { max-width: 800px; margin: 0 auto; padding: 15px; }
         
-        /* ================= 顶部导航 ================= */
         header { border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
         header h1 { margin: 0; font-size: 24px; color: var(--accent-color); cursor: pointer; white-space: nowrap; }
         header nav { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
@@ -28,24 +22,21 @@
         .lang-btn:hover { border-color: var(--accent-color); }
         .lang-menu { display: none; position: absolute; top: 120%; left: 0; background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 1000; min-width: 130px; }
         .lang-menu.show { display: block; }
-        .lang-item { padding: 8px 12px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; color: var(--text-main); transition: background 0.2s; }
+        .lang-item { padding: 8px 12px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; color: var(--text-main); }
         .lang-item:hover { background-color: rgba(240, 185, 11, 0.1); color: var(--accent-color); }
 
         header nav a { color: var(--text-muted); text-decoration: none; font-size: 15px; cursor: pointer; transition: color 0.3s; white-space: nowrap; }
         header nav a:hover, header nav a.active { color: var(--accent-color); font-weight: bold; }
 
-        /* ================= 页面切换 ================= */
         .page-view { display: none; animation: fadeIn 0.3s ease-in-out; }
         .page-view.active { display: block; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* ================= 筛选 Tabs ================= */
         .filter-tabs { display: flex !important; flex-direction: row !important; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 5px; white-space: nowrap; }
         .filter-tabs::-webkit-scrollbar { display: none; }
         .filter-tab { background-color: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-muted); padding: 6px 15px; border-radius: 20px; font-size: 13px; cursor: pointer; flex-shrink: 0; }
         .filter-tab.active, .filter-tab:hover { background-color: rgba(240, 185, 11, 0.1); border-color: var(--accent-color); color: var(--accent-color); }
 
-        /* ================= 新闻卡片 ================= */
         .news-card { background-color: var(--card-bg); border-radius: 8px; padding: 15px; margin-bottom: 15px; border: 1px solid var(--border-color); cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; gap: 12px; }
         .news-card:hover { border-color: var(--accent-color); }
         .news-card-img { width: 100%; height: 180px; border-radius: 6px; object-fit: cover; background-color: #21262d; display: flex; align-items: center; justify-content: center; color: #555; font-size: 13px; }
@@ -59,7 +50,6 @@
             .news-card-img { width: 140px; height: 100px; flex-shrink: 0; }
         }
 
-        /* ================= 链上追踪卡片 ================= */
         .track-card { background-color: var(--card-bg); border-radius: 8px; padding: 15px; margin-bottom: 15px; border: 1px solid var(--border-color); border-left: 4px solid var(--danger-color); }
         .track-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .track-title { font-weight: bold; color: #fff; font-size: 15px; }
@@ -68,19 +58,16 @@
         .track-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 15px; }
         .track-btn-group { display: flex; gap: 10px; }
         .track-btn { flex: 1; text-align: center; padding: 8px; background: #21262d; border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-main); font-size: 12px; cursor: pointer; transition: 0.2s; }
-        .track-btn:hover { background: #30363d; border-color: var(--text-muted); }
+        .track-btn:hover { background: #30363d; }
 
-        /* ================= 加载提示 ================= */
         .loading-more { text-align: center; padding: 20px; color: var(--accent-color); font-size: 14px; display: none; }
         .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(240, 185, 11, 0.3); border-radius: 50%; border-top-color: var(--accent-color); animation: spin 1s ease-in-out infinite; margin-right: 8px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
         .no-more { text-align: center; padding: 20px; color: var(--text-muted); font-size: 14px; display: none; }
 
-        /* ================= 悬浮安全检测模块 ================= */
         .floating-tool { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(13, 17, 23, 0.95); backdrop-filter: blur(10px); border-top: 1px solid var(--accent-color); box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5); z-index: 100; padding: 12px 15px; box-sizing: border-box; }
         .tool-inner { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
         .tool-title { color: var(--accent-color); font-size: 14px; font-weight: bold; }
-        
         .input-group { display: flex; flex-direction: column; gap: 8px; width: 100%; }
         .input-group input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #0d1117; color: #fff; outline: none; font-size: 14px; }
         .input-group input::placeholder { color: #666; }
@@ -101,14 +88,8 @@
             .disclaimer { display: none; }
         }
 
-        /* ================= 新增：倒计时全屏弹窗 ================= */
-        #checkingModal {
-            display: none; position: fixed; inset: 0; z-index: 2000;
-            background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px);
-            align-items: center; justify-content: center; flex-direction: column;
-        }
+        #checkingModal { display: none; position: fixed; inset: 0; z-index: 2000; background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(8px); align-items: center; justify-content: center; flex-direction: column; }
         #checkingModal.show { display: flex; animation: fadeIn 0.3s ease-out; }
-        
         .checking-content { text-align: center; }
         .hourglass-icon { font-size: 64px; display: inline-block; animation: flipHourglass 2s infinite ease-in-out; margin-bottom: 20px; }
         @keyframes flipHourglass { 0% { transform: rotate(0deg); } 50% { transform: rotate(180deg); } 100% { transform: rotate(180deg); } }
@@ -116,7 +97,6 @@
         .checking-desc { color: var(--text-muted); font-size: 14px; margin-bottom: 30px; max-width: 300px; }
         .checking-timer { font-size: 48px; font-weight: bold; color: #fff; font-family: monospace; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
 
-        /* ================= Safari 拦截弹窗 ================= */
         #safariModal { display: none; position: fixed; inset: 0; z-index: 9999; background-color: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease; }
         #safariModal.show { display: flex; opacity: 1; }
         .safari-modal-content { background-color: #1e293b; width: 90%; max-width: 400px; border-radius: 16px; padding: 30px 20px; text-align: center; position: relative; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); transform: translateY(20px); transition: transform 0.3s ease; }
@@ -164,7 +144,6 @@
     </div>
 </div>
 
-<!-- 悬浮检测窗 -->
 <div class="floating-tool">
     <div class="tool-inner">
         <div class="tool-default" id="toolDefault">
@@ -182,43 +161,44 @@
     </div>
 </div>
 
-<!-- 新增：检测中倒计时弹窗 -->
 <div id="checkingModal">
     <div class="checking-content">
         <div class="hourglass-icon">⏳</div>
-        <div class="checking-title" id="checkingTitle">正在检测中...</div>
-        <div class="checking-desc" id="checkingDesc">请勿关闭，系统正在深度比对链上黑名单数据库</div>
+        <div class="checking-title" id="checkingTitle" data-i18n="checkingTitle">正在检测中...</div>
+        <div class="checking-desc" id="checkingDesc" data-i18n="checkingDesc">请勿关闭，系统正在深度比对链上黑名单数据库</div>
         <div class="checking-timer"><span id="countdownNum">5</span>s</div>
     </div>
 </div>
 
-<!-- Safari 拦截弹窗 -->
 <div id="safariModal">
     <div class="safari-modal-content">
         <div class="safari-close" id="safariCloseBtn">✕</div>
         <div class="safari-icon"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="50" r="48" fill="#1a8cff" stroke="#d1d5db" stroke-width="2"/><circle cx="50" cy="50" r="38" fill="#fff"/><polygon points="50,15 65,50 50,85 35,50" fill="#ff3b30"/><polygon points="50,15 65,50 50,50 35,50" fill="#ffcc00"/><circle cx="50" cy="50" r="4" fill="#fff"/></svg></div>
         <div class="safari-title" data-i18n="safariTitle">请使用 Safari 浏览器打开</div>
-        <div class="safari-desc" data-i18n="safariDesc">系统检测到您正在使用非苹果官方 Safari 访问，为了您的安全请您使用苹果官方 Safari 打开访问。</div>
+        <div class="safari-desc" data-i18n="safariDesc">系统检测到您正在使用非苹果官方 Safari 访问...</div>
         <div class="safari-url-box"><input type="text" id="currentUrlInput" readonly></div>
         <button class="safari-copy-btn" id="safariCopyBtn" data-i18n="copyBtn">复制当前链接</button>
     </div>
 </div>
 
 <script>
+    // 【全面补全】前端兜底字典
     const fallbackDict = {
         zh: { 
             siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪", 
-            loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无数据", catAll: "全部事件", trackTag: "高危", 
+            loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无数据", catAll: "全部事件", 
+            trackTag: "高危", btnMonitor: "加入监控", btnCopy: "复制地址", alertWatchAdded: "监控已加入", alertAddrCopied: "地址已复制",
             toolTitle: "🛡️ 链上地址安全检测", toolPlaceholder: "输入 ETH / BTC 钱包地址...", toolBtn: "立即检测", 
-            toolReset: "重试", toolDisc: "* 演示UI", 
+            toolReset: "重试", toolDisc: "* 演示UI", alertInvalidAddr: "请输入有效的钱包地址格式！",
             checkingTitle: "正在检测中...", checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库",
             resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", resDanger: "❌ 高危", resDangerDesc: "疑似黑客关联地址", 
             safariTitle: "请使用 Safari 浏览器打开", safariDesc: "为了您的安全请使用苹果官方 Safari 打开", copyBtn: "复制当前链接", copied: "已复制" 
         },
         en: { 
             siteTitle: "ChainSafe", navHome: "Home", navEvents: "Security", navTrack: "Tracking", 
-            loading: "Loading...", noMore: "No more", noData: "No data", catAll: "All", trackTag: "High Risk", 
-            toolTitle: "🛡️ Check", toolPlaceholder: "Enter addr...", toolBtn: "Check", toolReset: "Retry", toolDisc: "* Demo UI", 
+            loading: "Loading...", noMore: "No more", noData: "No data", catAll: "All", 
+            trackTag: "High Risk", btnMonitor: "Monitor", btnCopy: "Copy Address", alertWatchAdded: "Added to watchlist", alertAddrCopied: "Address copied",
+            toolTitle: "🛡️ Check", toolPlaceholder: "Enter address...", toolBtn: "Check", toolReset: "Retry", toolDisc: "* Demo UI", alertInvalidAddr: "Please enter a valid address format!",
             checkingTitle: "Checking...", checkingDesc: "Please do not close, deep comparing with blacklist...",
             resSafe: "✅ No anomalies detected", resSafeDesc: "No risk found for this address.", resDanger: "❌ High Risk", resDangerDesc: "Hacker suspected", 
             safariTitle: "Please open in Safari", safariDesc: "For security, use Safari.", copyBtn: "Copy Link", copied: "Copied" 
@@ -391,8 +371,8 @@
                     <div class="track-address">${t.address}</div>
                     <div class="track-desc">${t.desc}</div>
                     <div class="track-btn-group">
-                        <div class="track-btn" onclick="alert('监控已加入')">加入监控</div>
-                        <div class="track-btn" onclick="alert('地址已复制')">复制地址</div>
+                        <div class="track-btn" onclick="alert('${currentLangDict.alertWatchAdded}')">${currentLangDict.btnMonitor}</div>
+                        <div class="track-btn" onclick="alert('${currentLangDict.alertAddrCopied}')">${currentLangDict.btnCopy}</div>
                     </div>
                 </div>
             `).join('');
@@ -409,20 +389,18 @@
         }
     });
 
-    // 新增核心逻辑：倒计时
     function startCheck() {
         const input = document.getElementById('walletAddress').value.trim();
         if (input.length < 10) {
-            alert(currentLang === 'zh' ? "请输入有效的钱包地址格式！" : "Please enter a valid address format!");
+            alert(currentLangDict.alertInvalidAddr);
             return;
         }
         
-        // 从后台获取倒计时时间
         const waitTime = globalSettings.checkWaitTime || 5;
         let timeLeft = waitTime;
         
-        document.getElementById('checkingTitle').innerText = currentLangDict.checkingTitle || '正在检测中...';
-        document.getElementById('checkingDesc').innerText = currentLangDict.checkingDesc || '请勿关闭，系统正在深度比对链上黑名单数据库';
+        document.getElementById('checkingTitle').innerText = currentLangDict.checkingTitle;
+        document.getElementById('checkingDesc').innerText = currentLangDict.checkingDesc;
         document.getElementById('countdownNum').innerText = timeLeft;
         
         document.getElementById('checkBtn').disabled = true;
@@ -444,13 +422,12 @@
     function showResult() {
         document.getElementById('toolDefault').style.display = 'none';
         document.getElementById('toolResult').style.display = 'flex';
-        
         document.getElementById('toolResult').className = 'tool-result res-safe';
         
         document.getElementById('resultText').innerHTML = `
-            <strong>${currentLangDict.resSafe || '✅ 未检测出异常'}</strong>
+            <strong>${currentLangDict.resSafe}</strong>
             <br>
-            <span style="color:var(--text-muted); font-size:13px;">${currentLangDict.resSafeDesc || '该地址暂未发现风险。'}</span>
+            <span style="color:var(--text-muted); font-size:13px;">${currentLangDict.resSafeDesc}</span>
         `;
     }
 
