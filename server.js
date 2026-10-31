@@ -3,9 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
-
-// 模拟翻译函数 (如果有真实的 translator.js 请替换)
-const translateWithPolling = async (texts, targetLang, sourceLang) => texts.map(t => `[${targetLang}] ${t}`);
+const axios = require('axios'); // 需要 npm install axios
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,12 +40,12 @@ Object.keys(DB_FILES).forEach(key => {
             deeplKey1: '', 
             deeplKey2: '',
             toolDesc: { 
-                zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成，不构成任何投资建议或法律依据。",
-                en: "* This is a frontend security demo UI. Results are randomly generated."
+                zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成，不构成任何投资建议或法律依据。"
             }
         };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
-        if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }];
+        // 注意这里：只保留干净的中文初始字典
+        if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }, { code: 'ja', name: '日本語', flag: '🇯🇵', active: true, dict: {} }];
         if (key === 'tracking') initialData = { interval: 0, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }] };
         fs.writeFileSync(DB_FILES[key], JSON.stringify(initialData, null, 2));
     }
@@ -64,6 +62,51 @@ const storage = multer.diskStorage({
     filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`)
 });
 const upload = multer({ storage });
+
+// ================= 真实 DeepL 翻译模块 =================
+async function translateText(textArray, targetLang, sourceLang = 'ZH') {
+    const settings = readDB('settings');
+    const keys = [settings.deeplKey1, settings.deeplKey2].filter(k => k && k.trim() !== '');
+    
+    if (keys.length === 0) throw new Error('请先在系统设置中配置 DeepL API Key！');
+    
+    // 随机轮询使用 Key
+    const apiKey = keys[Math.floor(Math.random() * keys.length)];
+    const isFree = apiKey.endsWith(':fx');
+    const url = isFree ? 'https://api-free.deepl.com/v2/translate' : 'https://api.deepl.com/v2/translate';
+
+    // DeepL 需要大写的目标语言代码 (如 EN, JA, ZH)
+    let targetCode = targetLang.split('-')[0].toUpperCase();
+    if (targetCode === 'ZH') targetCode = 'ZH-HANS'; // 简体中文
+    if (targetCode === 'EN') targetCode = 'EN-US';
+
+    const params = new URLSearchParams();
+    textArray.forEach(text => params.append('text', text));
+    params.append('target_lang', targetCode);
+    params.append('source_lang', sourceLang.toUpperCase());
+
+    try {
+        const response = await axios.post(url, params, {
+            headers: {
+                'Authorization': `DeepL-Auth-Key ${apiKey}`,
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        });
+        
+        // 记录翻译日志
+        const charCount = textArray.join('').length;
+        const LOGS_FILE = path.join(DB_DIR, 'translation_logs.json');
+        let logs = fs.existsSync(LOGS_FILE) ? JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8')) : [];
+        logs.push({ time: new Date().toISOString(), targetLang: targetCode, chars: charCount, apiKey: apiKey.substring(0, 5) + '***' });
+        fs.writeFileSync(LOGS_FILE, JSON.stringify(logs, null, 2));
+
+        return response.data.translations.map(t => t.text);
+    } catch (error) {
+        console.error('DeepL API 请求失败:', error.response?.data || error.message);
+        throw new Error('翻译服务调用失败，请检查 API Key 是否正确或额度是否耗尽。');
+    }
+}
+
 
 // ================= 前台 API =================
 app.get('/api/settings', (req, res) => res.json(readDB('settings')));
@@ -83,11 +126,10 @@ app.get('/api/articles/:id', (req, res) => {
 
 app.get('/api/tracking', (req, res) => {
     const config = readDB('tracking');
-    const mockTracks = [
-        { id: "1", title: "Lazarus Group (朝鲜黑客)", address: "0x098B716B8Aaf21512996dC57EB0615e2383E2f96", desc: "近期异动：该地址在刚刚将 1,200 ETH 转移至 Tornado Cash 混币器。", tag: "FBI 通缉" },
-        { id: "2", title: "某 DeFi 攻击者", address: "0xFb3bD022D5DAcF95EFFcf249C0b79f7eDc08cD22", desc: `该地址根据数据源 [${config.sources[0]?.name || '未知'}] 抓取，正在转移盗取资金。`, tag: "高危" }
-    ];
-    res.json(mockTracks);
+    res.json([
+        { id: "1", title: "Lazarus Group", address: "0x098B716B8Aaf21512996dC57EB0615e2383E2f96", desc: "近期异动：转移至 Tornado Cash。", tag: "FBI 通缉" },
+        { id: "2", title: "某 DeFi 攻击者", address: "0xFb3bD022D5DAcF95EFFcf249C0b79f7eDc08cD22", desc: `数据源 [${config.sources[0]?.name || '未知'}] 抓取。`, tag: "高危" }
+    ]);
 });
 
 // ================= 后台 API =================
@@ -115,25 +157,23 @@ app.get('/api/admin/stats', auth, (req, res) => {
 app.post('/api/admin/categories', auth, (req, res) => { const cats = readDB('categories'); cats.push(req.body); writeDB('categories', cats); res.json({ success: true }); });
 app.delete('/api/admin/categories/:id', auth, (req, res) => { writeDB('categories', readDB('categories').filter(c => c.id !== req.params.id)); res.json({ success: true }); });
 
-// 保存设置 (包含自动翻译描述)
+// 保存设置 (自动真实翻译描述)
 app.put('/api/admin/settings', auth, async (req, res) => {
     const oldSettings = readDB('settings');
     const newSettings = { ...oldSettings, ...req.body };
     
-    // 如果更新了工具描述，自动调用 DeepL 进行多国语言翻译
-    if (req.body.toolDescZh !== undefined) {
+    if (req.body.toolDescZh !== undefined && req.body.toolDescZh !== oldSettings.toolDesc?.zh) {
         const zhDesc = req.body.toolDescZh;
         try {
             const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
             const descObj = { zh: zhDesc };
             for (let l of langs) {
-                const result = await translateWithPolling([zhDesc], l.code, 'zh');
+                const result = await translateText([zhDesc], l.code);
                 descObj[l.code] = result[0];
             }
             newSettings.toolDesc = descObj;
         } catch (e) {
-            console.error('描述翻译失败:', e);
-            newSettings.toolDesc = { ...(oldSettings.toolDesc || {}), zh: zhDesc };
+            return res.status(500).json({ error: e.message });
         }
     }
     
@@ -141,6 +181,62 @@ app.put('/api/admin/settings', auth, async (req, res) => {
     res.json({ success: true });
 });
 
+// 真实翻译字典接口
+app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
+    const { targetLang } = req.body; 
+    const langs = readDB('languages'); 
+    const idx = langs.findIndex(l => l.code === targetLang);
+    
+    if (idx === -1 || targetLang === 'zh') return res.status(400).json({ error: '无效的语言' });
+    
+    try {
+        const keys = Object.keys(BASE_DICT); 
+        const texts = keys.map(k => BASE_DICT[k]);
+        // 调用真实翻译
+        const translated = await translateText(texts, targetLang);
+        const newDict = {}; 
+        keys.forEach((k, i) => newDict[k] = translated[i]);
+        
+        langs[idx].dict = newDict; 
+        writeDB('languages', langs); 
+        res.json({ success: true });
+    } catch (e) { 
+        res.status(502).json({ error: e.message }); 
+    }
+});
+
+app.post('/api/admin/languages', auth, (req, res) => { const langs = readDB('languages'); langs.push({ code: req.body.code, name: req.body.name, flag: req.body.flag, active: true, dict: {} }); writeDB('languages', langs); res.json({ success: true }); });
+app.put('/api/admin/languages/:code', auth, (req, res) => {
+    const langs = readDB('languages'); const idx = langs.findIndex(l => l.code === req.params.code);
+    if (idx > -1) { langs[idx] = { ...langs[idx], ...req.body }; writeDB('languages', langs); } res.json({ success: true });
+});
+
+// 翻译文章
+app.post('/api/admin/article/translate', auth, async (req, res) => {
+    const { title, summary, content, coverUrl, targetLangs, type } = req.body;
+    const articles = readDB('articles'); const groupId = uuidv4();
+    
+    if (targetLangs.includes('zh')) articles.push({ id: uuidv4(), groupId, lang: 'zh', type, title, summary, content, coverUrl, time: new Date().toISOString() });
+    const foreignLangs = targetLangs.filter(lang => lang !== 'zh');
+    
+    try {
+        for (let lang of foreignLangs) {
+            const translated = await translateText([title, summary, content], lang);
+            articles.push({ id: uuidv4(), groupId, lang, type, title: translated[0], summary: translated[1], content: translated[2], coverUrl, time: new Date().toISOString() });
+        }
+        writeDB('articles', articles); 
+        res.json({ success: true });
+    } catch (e) { 
+        res.status(502).json({ error: e.message }); 
+    }
+});
+
+app.delete('/api/admin/article-group/:groupId', auth, (req, res) => {
+    writeDB('articles', readDB('articles').filter(a => a.groupId !== req.params.groupId && a.id !== req.params.groupId));
+    res.json({ success: true });
+});
+
+// 追踪配置
 app.put('/api/admin/tracking/config', auth, (req, res) => {
     const config = readDB('tracking'); config.interval = Math.max(0, Number(req.body.interval) || 0);
     writeDB('tracking', config); res.json({ success: true });
@@ -155,40 +251,12 @@ app.delete('/api/admin/tracking/source/:index', auth, (req, res) => {
     res.json({ success: true });
 });
 
-app.post('/api/admin/languages', auth, (req, res) => { const langs = readDB('languages'); langs.push({ code: req.body.code, name: req.body.name, flag: req.body.flag, active: true, dict: {} }); writeDB('languages', langs); res.json({ success: true }); });
-app.put('/api/admin/languages/:code', auth, (req, res) => {
-    const langs = readDB('languages'); const idx = langs.findIndex(l => l.code === req.params.code);
-    if (idx > -1) { langs[idx] = { ...langs[idx], ...req.body }; writeDB('languages', langs); } res.json({ success: true });
-});
-
-app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
-    const { targetLang } = req.body; const langs = readDB('languages'); const idx = langs.findIndex(l => l.code === targetLang);
-    if (idx === -1 || targetLang === 'zh') return res.status(400).json({ error: 'Invalid' });
-    try {
-        const keys = Object.keys(BASE_DICT); const texts = keys.map(k => BASE_DICT[k]);
-        const translated = await translateWithPolling(texts, targetLang, 'zh');
-        const newDict = {}; keys.forEach((k, i) => newDict[k] = translated[i]);
-        langs[idx].dict = newDict; writeDB('languages', langs); res.json({ success: true });
-    } catch (e) { res.status(502).json({ error: '翻译失败' }); }
-});
-
-app.post('/api/admin/article/translate', auth, async (req, res) => {
-    const { title, summary, content, coverUrl, targetLangs, type } = req.body;
-    const articles = readDB('articles'); const groupId = uuidv4();
-    if (targetLangs.includes('zh')) articles.push({ id: uuidv4(), groupId, lang: 'zh', type, title, summary, content, coverUrl, time: new Date().toISOString() });
-    const foreignLangs = targetLangs.filter(lang => lang !== 'zh');
-    try {
-        for (let lang of foreignLangs) {
-            const translated = await translateWithPolling([title, summary, content], lang, 'zh');
-            articles.push({ id: uuidv4(), groupId, lang, type, title: translated[0], summary: translated[1], content: translated[2], coverUrl, time: new Date().toISOString() });
-        }
-        writeDB('articles', articles); res.json({ success: true });
-    } catch (e) { res.status(502).json({ error: '翻译失败' }); }
-});
-
-app.delete('/api/admin/article-group/:groupId', auth, (req, res) => {
-    writeDB('articles', readDB('articles').filter(a => a.groupId !== req.params.groupId && a.id !== req.params.groupId));
-    res.json({ success: true });
+// 翻译日志
+app.get('/api/admin/translation-logs', auth, (req, res) => {
+    const LOGS_FILE = path.join(DB_DIR, 'translation_logs.json');
+    if (!fs.existsSync(LOGS_FILE)) return res.json({ totalCount: 0, totalChars: 0, logs: [] });
+    let logs = JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8'));
+    res.json({ totalCount: logs.length, totalChars: logs.reduce((s, l) => s + (Number(l.chars) || 0), 0), logs });
 });
 
 app.listen(PORT, () => console.log(`Server on port ${PORT}`));
