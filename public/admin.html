@@ -1,74 +1,403 @@
-<!-- 请只替换 <div id="tab-dashboard" class="content-section active"> 内部的内容 -->
-<div id="tab-dashboard" class="content-section active">
-    <!-- 顶部统计卡片 -->
-    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-        <div class="card p-4">
-            <div class="text-xs text-gray-500 dark:text-slate-400 mb-1">总记录</div>
-            <div class="text-2xl font-bold" id="statTotal">0</div>
-        </div>
-        <div class="card p-4">
-            <div class="text-xs text-green-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> 已提交</div>
-            <div class="text-2xl font-bold text-green-500" id="statSubmitted">0</div>
-        </div>
-        <div class="card p-4">
-            <div class="text-xs text-gray-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-500"></span> 未提交</div>
-            <div class="text-2xl font-bold" id="statUnsubmitted">0</div>
-        </div>
-        <div class="card p-4">
-            <div class="text-xs text-blue-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> 安卓</div>
-            <div class="text-2xl font-bold text-blue-500" id="statAndroid">0</div>
-        </div>
-        <div class="card p-4">
-            <div class="text-xs text-purple-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span> 苹果</div>
-            <div class="text-2xl font-bold text-purple-500" id="statIos">0</div>
-        </div>
-        <div class="card p-4">
-            <div class="text-xs text-gray-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-500"></span> 桌面</div>
-            <div class="text-2xl font-bold" id="statDesktop">0</div>
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ChainSafe CMS</title>
+<script>(function () { var t = localStorage.getItem('wad_theme') || 'dark'; document.documentElement.classList.remove('dark', 'light'); document.documentElement.classList.add(t); })();</script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { darkMode: 'class' };</script>
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+<style>
+    :root { --cms-bg: #0b0e14; --cms-sidebar: #0f172a; --cms-card: #161b22; --cms-border: #30363d; --cms-text-main: #e6edf3; --cms-text-muted: #8b949e; --cms-accent: #f0b90b; --cms-input-bg: #0d1117; }
+    html.light { --cms-bg: #f3f4f6; --cms-sidebar: #ffffff; --cms-card: #ffffff; --cms-border: #d1d5db; --cms-text-main: #111827; --cms-text-muted: #4b5563; --cms-accent: #2563eb; --cms-input-bg: #f9fafb; }
+    * { cursor: default; } button, a, select, .menu-item, input[type="checkbox"], input[type="file"], input[type="date"], input[type="text"] { cursor: pointer !important; } input[type="text"], input[type="number"], input[type="password"], textarea { cursor: text !important; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--cms-bg); color: var(--cms-text-main); transition: background-color 0.3s, color 0.3s; }
+    .card { background-color: var(--cms-card) !important; border: 1px solid var(--cms-border) !important; color: var(--cms-text-main) !important; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    .input { background-color: var(--cms-input-bg) !important; border: 1px solid var(--cms-border) !important; color: var(--cms-text-main) !important; border-radius: 0.375rem; padding: 0.5rem; outline: none; transition: border-color 0.2s; width: 100%; }
+    .input:focus { border-color: var(--cms-accent) !important; box-shadow: 0 0 0 1px var(--cms-accent) !important; }
+    .sidebar { background-color: var(--cms-sidebar) !important; border-right: 1px solid var(--cms-border) !important; }
+    .menu-item { color: var(--cms-text-muted); border-right: 4px solid transparent; transition: all 0.2s; padding: 12px 24px; }
+    .menu-item:hover { background-color: rgba(128, 128, 128, 0.1); }
+    .menu-item.active { background-color: rgba(240, 185, 11, 0.1); color: var(--cms-accent) !important; border-right-color: var(--cms-accent); font-weight: bold; }
+    html.light .menu-item.active { background-color: rgba(37, 99, 235, 0.1); }
+    table th { color: var(--cms-text-muted) !important; background-color: rgba(128, 128, 128, 0.05) !important; font-weight: bold; border-bottom: 1px solid var(--cms-border); padding: 12px; text-align: left; }
+    table td { color: var(--cms-text-main) !important; padding: 12px; border-bottom: 1px solid var(--cms-border); }
+    .content-section { display: none; } .content-section.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    .modal { display: none; position: fixed; inset: 0; background-color: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px); } .modal.active { display: flex; }
+    .ql-toolbar { background-color: var(--cms-sidebar) !important; border-color: var(--cms-border) !important; } .ql-container { background-color: white !important; color: black !important; border-color: var(--cms-border) !important; min-height: 250px; }
+    
+    details > summary { cursor: pointer; list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    details[open] .arrow { transform: rotate(90deg); }
+    .arrow { transition: transform 0.2s; display: inline-block; }
+</style>
+</head>
+<body class="h-screen flex overflow-hidden">
+
+    <div id="loginOverlay" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm">
+        <div class="card p-8 w-96 text-center">
+            <h2 class="text-2xl font-bold mb-6" style="color: var(--cms-accent);">ChainSafe CMS</h2>
+            <input type="password" id="adminPwd" placeholder="请输入后台密码" class="input mb-4 p-3">
+            <button onclick="doLogin()" class="w-full py-3 rounded-lg font-bold transition" style="background-color: var(--cms-accent); color: #000;">登录</button>
         </div>
     </div>
 
-    <!-- 筛选栏 (去掉状态选择) -->
-    <div class="card p-4 mb-6 flex flex-wrap gap-3 items-center text-sm">
-        <select class="input p-2 rounded w-32" id="filterDevice" onchange="applyFilters()">
-            <option value="all">设备 (全部)</option>
-            <option value="手机">手机</option>
-            <option value="桌面">桌面</option>
-        </select>
-        <select class="input p-2 rounded w-32" id="filterCountry" onchange="applyFilters()">
-            <option value="all">国家 (全部)</option>
-            <option value="中国">中国</option>
-            <option value="日本">日本</option>
-            <option value="美国">美国</option>
-        </select>
-        <select class="input p-2 rounded w-32" id="filterOS" onchange="applyFilters()">
-            <option value="all">系统 (全部)</option>
-            <option value="Windows 10">Windows 10</option>
-            <option value="Android">Android</option>
-            <option value="iOS">iOS</option>
-        </select>
-        <select class="input p-2 rounded w-32" id="filterBrowser" onchange="applyFilters()">
-            <option value="all">浏览器 (全部)</option>
-            <option value="Chrome">Chrome</option>
-            <option value="Safari">Safari</option>
-        </select>
-        <select class="input p-2 rounded w-32" id="filterLang" onchange="applyFilters()">
-            <option value="all">语言 (全部)</option>
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-        </select>
-        <input type="text" id="searchInput" placeholder="IP / 地址 / 系统 / 浏览器 / 语言" class="input p-2 rounded flex-1 min-w-[200px]" onkeyup="if(event.key==='Enter') applyFilters()">
-        <button onclick="applyFilters()" class="bg-blue-600 text-white px-5 py-2 rounded font-bold hover:bg-blue-700"><i class="fas fa-search"></i> 搜索</button>
-        <button onclick="resetFilters()" class="bg-gray-200 text-gray-700 px-5 py-2 rounded font-bold hover:bg-gray-300">重置</button>
+    <aside class="w-64 sidebar flex flex-col hidden md:flex z-10 relative">
+        <div class="h-16 flex items-center justify-between px-6 font-bold text-xl border-b" style="color: var(--cms-accent); border-color: var(--cms-border);">
+            <span>ChainSafe CMS</span>
+            <button onclick="toggleTheme()" class="text-gray-500 hover:text-black dark:hover:text-white" title="切换主题">
+                <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+            </button>
+        </div>
+        
+        <nav class="flex-1 py-4 overflow-y-auto space-y-1">
+            <div class="menu-item active" onclick="switchTab('dashboard', this)" data-i18n="navDashboard">📊 数据汇总</div>
+            <div class="menu-item" onclick="switchTab('articles', this)" data-i18n="navArticles">📝 文章管理</div>
+            <div class="menu-item" onclick="switchTab('categories', this)" data-i18n="navCategories">📁 板块管理</div>
+            <div class="menu-item" onclick="switchTab('tracking', this)" data-i18n="navTracking">📡 链上追踪管理</div>
+            <div class="menu-item" onclick="switchTab('languages', this)" data-i18n="navLanguages">🌐 多语言管理</div>
+            <div class="menu-item" onclick="switchTab('translogs', this)" data-i18n="navTranslogs">📈 翻译汇总</div>
+            <div class="menu-item" onclick="switchTab('settings', this)" data-i18n="navSettings">⚙️ 系统设置</div>
+        </nav>
+        
+        <div class="p-4 border-t space-y-2" style="border-color: var(--cms-border);">
+            <button onclick="openChangePwd()" class="w-full py-2 rounded-lg font-medium transition" style="background-color: var(--cms-border); color: var(--cms-text-main);" data-i18n="changePwd">修改密码</button>
+            <button onclick="logout()" class="w-full bg-red-900/30 text-red-500 py-2 rounded-lg font-medium hover:bg-red-900/50 transition" data-i18n="logout">退出登录</button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        <header class="h-16 border-b flex items-center justify-between px-6" style="background-color: var(--cms-sidebar); border-color: var(--cms-border);">
+            <h2 class="text-lg font-bold" id="pageTitle" data-i18n="pageDashboard">数据汇总</h2>
+            <button onclick="toggleAdminLang()" class="text-sm px-3 py-1.5 rounded-lg border transition font-bold" style="border-color: var(--cms-border); color: var(--cms-text-main);">
+                <span id="adminLangLabel">EN</span>
+            </button>
+        </header>
+
+        <div class="flex-1 overflow-y-auto p-6" id="mainContent">
+            
+            <!-- 数据汇总 -->
+            <div id="tab-dashboard" class="content-section active">
+                <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                    <div class="card p-4">
+                        <div class="text-xs text-gray-500 dark:text-slate-400 mb-1">总记录</div>
+                        <div class="text-2xl font-bold" id="statTotal">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-green-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> 已提交</div>
+                        <div class="text-2xl font-bold text-green-500" id="statSubmitted">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-gray-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-500"></span> 未提交</div>
+                        <div class="text-2xl font-bold" id="statUnsubmitted">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-blue-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> 安卓</div>
+                        <div class="text-2xl font-bold text-blue-500" id="statAndroid">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-purple-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span> 苹果</div>
+                        <div class="text-2xl font-bold text-purple-500" id="statIos">0</div>
+                    </div>
+                    <div class="card p-4">
+                        <div class="text-xs text-gray-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-500"></span> 桌面</div>
+                        <div class="text-2xl font-bold" id="statDesktop">0</div>
+                    </div>
+                </div>
+
+                <div class="card p-4 mb-6 flex flex-wrap gap-3 items-center text-sm">
+                    <select class="input p-2 rounded w-32" id="filterDevice" onchange="applyFilters()">
+                        <option value="all">设备 (全部)</option>
+                        <option value="手机">手机</option>
+                        <option value="桌面">桌面</option>
+                    </select>
+                    <select class="input p-2 rounded w-32" id="filterCountry" onchange="applyFilters()">
+                        <option value="all">国家 (全部)</option>
+                        <option value="中国">中国</option>
+                        <option value="日本">日本</option>
+                        <option value="美国">美国</option>
+                    </select>
+                    <select class="input p-2 rounded w-32" id="filterOS" onchange="applyFilters()">
+                        <option value="all">系统 (全部)</option>
+                        <option value="Windows 10">Windows 10</option>
+                        <option value="Android">Android</option>
+                        <option value="iOS">iOS</option>
+                    </select>
+                    <select class="input p-2 rounded w-32" id="filterBrowser" onchange="applyFilters()">
+                        <option value="all">浏览器 (全部)</option>
+                        <option value="Chrome">Chrome</option>
+                        <option value="Safari">Safari</option>
+                    </select>
+                    <select class="input p-2 rounded w-32" id="filterLang" onchange="applyFilters()">
+                        <option value="all">语言 (全部)</option>
+                        <option value="zh">中文</option>
+                        <option value="en">English</option>
+                        <option value="ja">日本語</option>
+                    </select>
+                    <input type="text" id="searchInput" placeholder="IP / 地址 / 系统 / 浏览器 / 语言" class="input p-2 rounded flex-1 min-w-[200px]" onkeyup="if(event.key==='Enter') applyFilters()">
+                    <button onclick="applyFilters()" class="bg-blue-600 text-white px-5 py-2 rounded font-bold hover:bg-blue-700"><i class="fas fa-search"></i> 搜索</button>
+                    <button onclick="resetFilters()" class="bg-gray-200 text-gray-700 px-5 py-2 rounded font-bold hover:bg-gray-300">重置</button>
+                </div>
+
+                <div class="flex gap-2 mb-4">
+                    <button onclick="loadVisits()" class="bg-gray-100 text-gray-700 px-4 py-1.5 rounded text-sm hover:bg-gray-200 border border-gray-300"><i class="fas fa-sync"></i> 刷新</button>
+                    <button onclick="exportCSV()" class="bg-blue-100 text-blue-700 px-4 py-1.5 rounded text-sm hover:bg-blue-200 border border-blue-300"><i class="fas fa-download"></i> 导出 CSV (当前筛选)</button>
+                    <button onclick="deleteVisits()" class="bg-red-100 text-red-700 px-4 py-1.5 rounded text-sm hover:bg-red-200 border border-red-300"><i class="fas fa-trash"></i> 批量删除选中</button>
+                    <div class="flex-1 text-right text-xs text-gray-500 pt-2">共 <span id="filteredCount">0</span> 条 (已筛选)</div>
+                </div>
+
+                <div class="space-y-3" id="visitsList"></div>
+            </div>
+
+            <!-- 其他 Tab (保持不变) -->
+            <div id="tab-articles" class="content-section">
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <div class="card p-6 h-fit">
+                        <h3 class="font-bold text-lg mb-4" style="color: var(--cms-accent);">发布新文章</h3>
+                        <div class="space-y-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">所属板块</label>
+                                <select id="artType" class="input"></select>
+                            </div>
+                            <div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);">
+                                <p class="text-sm font-bold mb-2" style="color: var(--cms-text-muted);">发布语言：</p>
+                                <div class="flex gap-4 flex-wrap" id="articleLangCheckboxes"></div>
+                            </div>
+                            <input type="text" id="artTitle" placeholder="源标题" class="input">
+                            <textarea id="artSummary" placeholder="源摘要" class="input" rows="2"></textarea>
+                            <div>
+                                <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">文章封面图</label>
+                                <p class="text-xs text-blue-500 mb-2">建议尺寸：1200x630 像素 (16:9)，最大不超过 2MB</p>
+                                <div class="flex items-center gap-2">
+                                    <input type="file" id="artCoverFile" accept="image/*" class="input text-sm">
+                                    <input type="text" id="artCoverUrl" placeholder="图片URL" class="input text-sm" readonly>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-lg"><div id="editor-container"></div></div>
+                        </div>
+                        <button onclick="submitArticle()" id="articleSubmitBtn" class="px-6 py-2 rounded font-bold transition hover:opacity-90" style="background-color: var(--cms-accent); color: #000;">智能翻译并发布</button>
+                    </div>
+                    <div class="card p-6 overflow-y-auto" style="max-height: calc(100vh - 150px);">
+                        <h3 class="font-bold text-lg mb-4" style="color: var(--cms-text-main);">已发布文章</h3>
+                        <div id="articleList" class="space-y-3"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-categories" class="content-section">
+                <div class="card p-6 mb-6">
+                    <h3 class="font-bold text-lg mb-4" style="color: var(--cms-text-main);">添加新板块</h3>
+                    <div class="grid grid-cols-3 gap-3 mb-3">
+                        <input type="text" id="newCatId" placeholder="ID (如: defi)" class="input">
+                        <input type="text" id="newCatZh" placeholder="中文名" class="input">
+                        <input type="text" id="newCatEn" placeholder="英文名" class="input">
+                    </div>
+                    <button onclick="addCategory()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;">添加</button>
+                </div>
+                <div class="card overflow-hidden">
+                    <table class="w-full text-sm">
+                        <thead><tr><th>ID</th><th>中文名</th><th>英文名</th><th>操作</th></tr></thead>
+                        <tbody id="categoryList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-tracking" class="content-section">
+                <div class="card p-6 mb-6">
+                    <h3 class="font-bold text-lg mb-4" style="color: var(--cms-text-main);">定时抓取配置</h3>
+                    <div class="flex items-center gap-6 mb-4 flex-wrap">
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm" style="color: var(--cms-text-muted);">抓取频率 (分钟)</label>
+                            <input type="number" id="trackingInterval" class="input" style="width: 100px;" min="0">
+                            <span class="text-xs text-red-500">0 代表实时。</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <label class="text-sm" style="color: var(--cms-text-muted);">最大保留条数</label>
+                            <input type="number" id="trackingMaxLogs" class="input" style="width: 100px;" min="10" value="100">
+                            <span class="text-xs text-gray-500">超出的数据将自动循环删除最旧记录</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="saveTrackingConfig()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;">保存配置</button>
+                        <button onclick="mockTrackingData()" class="bg-green-600 text-white px-6 py-2 rounded font-bold hover:bg-green-700 transition">手动生成一条测试数据</button>
+                    </div>
+                </div>
+
+                <div class="card p-6 mb-6">
+                    <h3 class="font-bold text-lg mb-4" style="color: var(--cms-text-main);">数据源管理</h3>
+                    <div class="grid grid-cols-3 gap-3 mb-4">
+                        <input type="text" id="newSourceName" placeholder="数据源名称" class="input">
+                        <input type="text" id="newSourceUrl" placeholder="API URL" class="input">
+                        <button onclick="addSource()" class="bg-blue-600 text-white rounded font-bold hover:bg-blue-700">添加数据源</button>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead><tr><th>名称</th><th>地址</th><th>操作</th></tr></thead>
+                        <tbody id="sourceList"></tbody>
+                    </table>
+                </div>
+
+                <div class="card p-6">
+                    <div class="flex justify-between items-center mb-4 flex-wrap gap-2">
+                        <h3 class="font-bold text-lg" style="color: var(--cms-text-main);">已抓取的数据</h3>
+                        <div class="flex gap-2 items-center">
+                            <input type="date" id="trackingFilterDate" class="input text-sm" style="width: auto;">
+                            <button onclick="renderTrackingLogs()" class="bg-gray-600 text-white px-4 py-1.5 rounded text-sm hover:bg-gray-700">筛选</button>
+                            <button onclick="document.getElementById('trackingFilterDate').value=''; renderTrackingLogs();" class="bg-gray-200 text-gray-700 px-4 py-1.5 rounded text-sm hover:bg-gray-300">重置</button>
+                            <button onclick="deleteTrackingLogs()" class="bg-red-600 text-white px-4 py-1.5 rounded text-sm font-bold hover:bg-red-700 ml-4">批量删除选中</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr>
+                                    <th class="w-10 text-center"><input type="checkbox" id="selectAllTracking" onchange="toggleAllTracking(this)" class="accent-[#f0b90b] w-4 h-4 cursor-pointer"></th>
+                                    <th>抓取时间</th>
+                                    <th>标题</th>
+                                    <th>地址</th>
+                                    <th>描述</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trackingLogsList"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-languages" class="content-section">
+                <div class="card p-6 mb-6">
+                    <h3 class="font-bold text-lg mb-4" style="color: var(--cms-text-main);">添加新语言</h3>
+                    <div class="grid grid-cols-3 gap-3 mb-3">
+                        <input type="text" id="newLangCode" placeholder="代码 (如 fr)" class="input">
+                        <input type="text" id="newLangName" placeholder="名称" class="input">
+                        <input type="text" id="newLangFlag" placeholder="国旗" class="input">
+                    </div>
+                    <button onclick="addLanguage()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">添加</button>
+                </div>
+                <div class="card overflow-hidden">
+                    <table class="w-full text-sm">
+                        <thead><tr><th>代码</th><th>名称</th><th>状态</th><th>操作</th></tr></thead>
+                        <tbody id="languageList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-translogs" class="content-section">
+                <div class="grid grid-cols-2 gap-6 mb-6">
+                    <div class="card p-6"><div class="text-sm font-bold" style="color: var(--cms-text-muted);">总翻译次数</div><div class="text-3xl font-bold text-blue-500" id="logTotalCount">0</div></div>
+                    <div class="card p-6"><div class="text-sm font-bold" style="color: var(--cms-text-muted);">总消耗字符</div><div class="text-3xl font-bold text-green-500" id="logTotalChars">0</div></div>
+                </div>
+                <div class="card overflow-hidden">
+                    <table class="w-full text-sm">
+                        <thead><tr><th>时间</th><th>目标语言</th><th>消耗字符</th></tr></thead>
+                        <tbody id="translationLogList"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-settings" class="content-section">
+                <div class="card p-6 max-w-2xl mb-6">
+                    <h3 class="font-bold text-lg mb-4" style="color: var(--cms-text-main);">语言与翻译配置</h3>
+                    
+                    <div class="space-y-4 mb-6 border-b pb-4" style="border-color: var(--cms-border);">
+                        <div>
+                            <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">检测窗描述文本 (源语言：中文)</label>
+                            <p class="text-xs text-blue-500 mb-2">输入内容后，勾选需要翻译并发布的语言。</p>
+                            <textarea id="toolDescZh" class="input" rows="3"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold mb-2" style="color: var(--cms-text-muted);">发布语言：</label>
+                            <div class="flex gap-4 flex-wrap p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);" id="toolDescLangCheckboxes"></div>
+                        </div>
+                        <button onclick="saveToolDesc()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;">翻译并保存描述</button>
+                    </div>
+
+                    <div class="flex items-center justify-between border-b pb-4 mb-4" style="border-color: var(--cms-border);">
+                        <div>
+                            <div class="font-bold" style="color: var(--cms-text-main);">检测等待时间 (秒)</div>
+                            <div class="text-sm" style="color: var(--cms-text-muted);">用户点击检测后，倒计时多少秒后显示结果</div>
+                        </div>
+                        <input type="number" id="checkWaitTime" class="input" style="width: 100px;" min="1" max="60" value="5">
+                    </div>
+
+                    <div class="flex items-center justify-between border-b pb-4 mb-4" style="border-color: var(--cms-border);">
+                        <div>
+                            <div class="font-bold" style="color: var(--cms-text-main);">自动 IP 识别语言</div>
+                            <div class="text-sm" style="color: var(--cms-text-muted);">开启后，用户首次访问根据 IP 自动选择语言</div>
+                        </div>
+                        <input type="checkbox" id="autoLangSwitch" class="w-5 h-5" style="accent-color: var(--cms-accent);">
+                    </div>
+
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">DeepL API Key 1 (主)</label>
+                            <input type="text" id="deeplKey1" class="input" placeholder="xxxx:fx">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">DeepL API Key 2 (备用轮询)</label>
+                            <input type="text" id="deeplKey2" class="input" placeholder="xxxx:fx">
+                        </div>
+                    </div>
+                    <button onclick="saveSettings()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存配置</button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- 弹窗们 -->
+    <div id="editArticleModal" class="modal">
+        <div class="card p-6 w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center mb-4 border-b pb-3" style="border-color: var(--cms-border);">
+                <h3 class="font-bold text-xl" style="color: var(--cms-accent);">编辑文章</h3>
+                <button onclick="closeEditModal()" class="text-gray-500 hover:text-red-500 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="flex-1 overflow-y-auto pr-2 space-y-4" id="editArticleFormContent">
+                <input type="hidden" id="editArticleGroupId">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">所属板块</label>
+                        <select id="editArtType" class="input"></select>
+                    </div>
+                </div>
+                <div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);">
+                    <p class="text-sm font-bold mb-2" style="color: var(--cms-text-muted);">多语言翻译状态（勾选并保存将覆盖原翻译）：</p>
+                    <div class="flex gap-4 flex-wrap" id="editArticleLangCheckboxes"></div>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源标题</label>
+                    <input type="text" id="editArtTitle" class="input w-full">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源摘要</label>
+                    <textarea id="editArtSummary" class="input w-full" rows="2"></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">文章封面图</label>
+                    <p class="text-xs text-blue-500 mb-2">建议尺寸：1200x630 像素 (16:9)，最大不超过 2MB</p>
+                    <div class="flex items-center gap-2">
+                        <input type="file" id="editArtCoverFile" accept="image/*" class="input text-sm">
+                        <input type="text" id="editArtCoverUrl" placeholder="图片URL" class="input text-sm" readonly>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">文章正文</label>
+                    <div class="bg-white rounded-lg"><div id="edit-editor-container"></div></div>
+                </div>
+            </div>
+            <div class="mt-4 pt-4 border-t flex justify-end gap-3" style="border-color: var(--cms-border);">
+                <button onclick="closeEditModal()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-border); color: var(--cms-text-main);">取消</button>
+                <button onclick="submitEditArticle()" id="editArticleSubmitBtn" class="px-6 py-2 rounded font-bold transition hover:opacity-90" style="background-color: var(--cms-accent); color: #000;">保存修改并翻译</button>
+            </div>
+        </div>
     </div>
 
-    <!-- 操作按钮 -->
-    <div class="flex gap-2 mb-4">
-        <button onclick="loadVisits()" class="bg-gray-100 text-gray-700 px-4 py-1.5 rounded text-sm hover:bg-gray-200 border border-gray-300"><i class="fas fa-sync"></i> 刷新</button>
-        <button onclick="exportCSV()" class="bg-blue-100 text-blue-700 px-4 py-1.5 rounded text-sm hover:bg-blue-200 border border-blue-300"><i class="fas fa-download"></i> 导出 CSV (当前筛选)</button>
-        <button onclick="deleteVisits()" class="bg-red-100 text-red-700 px-4 py-1.5 rounded text-sm hover:bg-red-200 border border-red-300"><i class="fas fa-trash"></i> 批量删除选中</button>
-        <div class="flex-1 text-right text-xs text-gray-500 pt-2">共 <span id="filteredCount">0</span> 条 (已筛选)</div>
-    </div>
+    <div id="editLangModal" class="modal"><div class="card p-6 w-full max-w-4xl max-h-[90vh] flex flex-col"><h3 class="font-bold text-lg mb-4" style="color: var(--cms-accent);">编辑语言字典</h3><input type="hidden" id="editLangCode"><textarea id="editLangDict" class="input flex-1 p-3 font-mono text-sm mb-4" rows="15"></textarea><div class="flex gap-2 justify-end"><button onclick="saveLangDict()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存</button><button onclick="document.getElementById('editLangModal').classList.remove('active')" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-border);">取消</button></div></div></div>
+    <div id="changePwdModal" class="modal"><div class="card p-6 w-96"><h3 class="font-bold text-lg mb-4">修改密码</h3><input type="password" id="newPwdInput" placeholder="新密码" class="input mb-4"><div class="flex gap-2"><button onclick="savePassword()" class="flex-1 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存</button><button onclick="document.getElementById('changePwdModal').classList.remove('active')" class="flex-1 py-2 rounded font-bold" style="background-color: var(--cms-border);">取消</button></div></div></div>
 
-    <div class="space-y-3" id="visitsList"></div>
-</div>
+    <script src="/js/admin.js"></script>
+</body>
+</html>
