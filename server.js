@@ -20,7 +20,7 @@ const DB_FILES = {
     settings: path.join(DB_DIR, 'settings.json'),
     categories: path.join(DB_DIR, 'categories.json'),
     tracking: path.join(DB_DIR, 'tracking.json'),
-    visits: path.join(DB_DIR, 'visits.json') // 新增用户访问记录
+    visits: path.join(DB_DIR, 'visits.json')
 };
 
 const BASE_DICT = {
@@ -40,27 +40,9 @@ Object.keys(DB_FILES).forEach(key => {
         if (key === 'admin') initialData = { password: 'admin888' };
         if (key === 'settings') initialData = { autoLang: true, deeplKey1: '', deeplKey2: '', checkWaitTime: 5, toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成，不构成任何投资建议或法律依据。" } };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
-        if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }, { code: 'ja', name: '日本語', flag: '🇯🇵', active: true, dict: {} }];
+        if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }];
         if (key === 'tracking') initialData = { interval: 1, maxLogs: 100, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }], logs: [] };
-        if (key === 'visits') {
-            // 初始注入一条假数据以展示UI效果
-            initialData = [{
-                id: uuidv4(),
-                address: "TNk1115L4zcnRRvTxpg5iYwxp2tqYtCALS",
-                ip: "41.160.236.120",
-                country: "日本",
-                os: "Windows 10",
-                browser: "Chrome 155.0.0.0",
-                lang: "en",
-                device: "桌面",
-                visitTime: new Date(Date.now() - 3600000).toISOString(),
-                submitTime: new Date().toISOString(),
-                duration: 90,
-                status: "等待审核",
-                source: "Telegram (@dbf23123)",
-                fingerprint: "9a8b7c6d5e4f3g2h"
-            }];
-        }
+        if (key === 'visits') initialData = []; 
         fs.writeFileSync(DB_FILES[key], JSON.stringify(initialData, null, 2));
     }
 });
@@ -87,6 +69,8 @@ function mockTrackingData() {
 setInterval(() => { if (readDB('tracking').interval > 0) mockTrackingData(); }, 60000);
 
 app.use(express.json({ limit: '10mb' }));
+// 增加对 text/plain 的解析，为了支持 navigator.sendBeacon
+app.use(express.text({ type: 'text/plain' })); 
 app.use(express.static('public'));
 
 const storage = multer.diskStorage({ destination: (req, file, cb) => cb(null, UPLOAD_DIR), filename: (req, file, cb) => cb(null, `${uuidv4()}${path.extname(file.originalname)}`) });
@@ -130,33 +114,61 @@ app.get('/api/articles', (req, res) => {
 app.get('/api/articles/:id', (req, res) => { res.json(readDB('articles').find(a => a.id === req.params.id) || null); });
 app.get('/api/tracking', (req, res) => { res.json((readDB('tracking').logs || []).slice(0, 20)); });
 
-// 【新增】前端提交检测数据
+// 1. 记录访问 (进入网页)
+app.post('/api/track/visit', (req, res) => {
+    const { ip, country, os, browser, lang, device } = req.body;
+    const visits = readDB('visits');
+    const newVisit = {
+        id: uuidv4(),
+        address: '',
+        ip: ip || '未知',
+        country: country || '未知',
+        os: os || '未知',
+        browser: browser || '未知',
+        lang: lang || 'zh',
+        device: device || '桌面',
+        visitTime: new Date().toISOString(),
+        submitTime: null,
+        leaveTime: null,
+        duration: 0,
+        fingerprint: uuidv4().substring(0, 16)
+    };
+    visits.unshift(newVisit);
+    writeDB('visits', visits);
+    res.json({ success: true, visitId: newVisit.id });
+});
+
+// 2. 记录离开
+app.post('/api/track/leave', (req, res) => {
+    let body = req.body;
+    if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) {} }
+    
+    const { visitId } = body || {};
+    if (!visitId) return res.json({ success: false });
+    
+    const visits = readDB('visits');
+    const target = visits.find(v => v.id === visitId);
+    if (target && !target.leaveTime) {
+        const now = new Date();
+        target.leaveTime = now.toISOString();
+        target.duration = Math.max(0, Math.floor((now - new Date(target.visitTime)) / 1000));
+        writeDB('visits', visits);
+    }
+    res.json({ success: true });
+});
+
+// 3. 记录提交
 app.post('/api/track/submit', (req, res) => {
-    try {
-        const { address, ip, country, os, browser, lang, device, source, fingerprint } = req.body;
-        const visits = readDB('visits');
-        
-        const newVisit = {
-            id: uuidv4(),
-            address: address || '未知',
-            ip: ip || req.ip || '127.0.0.1',
-            country: country || '未知',
-            os: os || '未知',
-            browser: browser || '未知',
-            lang: lang || 'zh',
-            device: device || '桌面',
-            visitTime: new Date().toISOString(), // 简化处理，直接设为提交时间
-            submitTime: new Date().toISOString(),
-            duration: Math.floor(Math.random() * 120) + 10, // 模拟停留时间
-            status: "等待审核",
-            source: source || "Web",
-            fingerprint: fingerprint || uuidv4().substring(0, 16)
-        };
-        visits.unshift(newVisit);
+    const { visitId, address } = req.body;
+    const visits = readDB('visits');
+    const target = visits.find(v => v.id === visitId);
+    if (target) {
+        target.address = address;
+        target.submitTime = new Date().toISOString();
         writeDB('visits', visits);
         res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: '记录失败' });
+    } else {
+        res.status(404).json({ error: '访问记录不存在' });
     }
 });
 
@@ -173,20 +185,32 @@ app.get('/api/admin/data', auth, (req, res) => {
     res.json({ 
         articles: readDB('articles'), languages: readDB('languages'), 
         settings: readDB('settings'), categories: readDB('categories'), 
-        tracking: readDB('tracking'), visits: readDB('visits') // 返回访问数据
+        tracking: readDB('tracking'), visits: readDB('visits')
     });
 });
 
+// 追踪管理相关 API
+app.put('/api/admin/tracking/config', auth, (req, res) => { const config = readDB('tracking'); if (req.body.interval !== undefined) config.interval = Math.max(0, Number(req.body.interval) || 0); if (req.body.maxLogs !== undefined) config.maxLogs = Math.max(10, Number(req.body.maxLogs) || 100); writeDB('tracking', config); res.json({ success: true }); });
+app.post('/api/admin/tracking/source', auth, (req, res) => { const config = readDB('tracking'); config.sources.push({ name: req.body.name, url: req.body.url }); writeDB('tracking', config); res.json({ success: true }); });
+app.delete('/api/admin/tracking/source/:index', auth, (req, res) => { const config = readDB('tracking'); const idx = Number(req.params.index); if (idx >= 0 && idx < config.sources.length) { config.sources.splice(idx, 1); writeDB('tracking', config); } res.json({ success: true }); });
+app.post('/api/admin/tracking/logs/delete', auth, (req, res) => { let tracking = readDB('tracking'); tracking.logs = (tracking.logs || []).filter(l => !req.body.ids.includes(l.id)); writeDB('tracking', tracking); res.json({ success: true }); });
+app.post('/api/admin/tracking/mock', auth, (req, res) => { mockTrackingData(); res.json({ success: true }); });
+
+// 访问记录管理 API (批量删除)
+app.post('/api/admin/visits/delete', auth, (req, res) => {
+    let visits = readDB('visits').filter(v => !req.body.ids.includes(v.id));
+    writeDB('visits', visits); res.json({ success: true });
+});
+
+// 其他各种后台设置接口保持不变...
 app.get('/api/admin/stats', auth, (req, res) => {
     const articles = readDB('articles'); const categories = readDB('categories');
     const stats = { total: articles.length, byCategory: {} };
     categories.forEach(c => stats.byCategory[c.id] = articles.filter(a => a.type === c.id).length);
     res.json(stats);
 });
-
 app.post('/api/admin/categories', auth, (req, res) => { const cats = readDB('categories'); cats.push(req.body); writeDB('categories', cats); res.json({ success: true }); });
 app.delete('/api/admin/categories/:id', auth, (req, res) => { writeDB('categories', readDB('categories').filter(c => c.id !== req.params.id)); res.json({ success: true }); });
-
 app.put('/api/admin/settings', auth, async (req, res) => {
     const oldSettings = readDB('settings');
     const newSettings = { ...oldSettings, ...req.body };
@@ -202,7 +226,6 @@ app.put('/api/admin/settings', auth, async (req, res) => {
     delete newSettings.toolDescZh; delete newSettings.targetLangs;
     writeDB('settings', newSettings); res.json({ success: true });
 });
-
 app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
     const { targetLang } = req.body; const langs = readDB('languages'); const idx = langs.findIndex(l => l.code === targetLang);
     if (idx === -1 || targetLang === 'zh') return res.status(400).json({ error: '无效的语言' });
@@ -213,10 +236,8 @@ app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
         langs[idx].dict = newDict; writeDB('languages', langs); res.json({ success: true });
     } catch (e) { res.status(502).json({ error: e.message }); }
 });
-
 app.post('/api/admin/languages', auth, (req, res) => { const langs = readDB('languages'); langs.push({ code: req.body.code, name: req.body.name, flag: req.body.flag, active: true, dict: {} }); writeDB('languages', langs); res.json({ success: true }); });
 app.put('/api/admin/languages/:code', auth, (req, res) => { const langs = readDB('languages'); const idx = langs.findIndex(l => l.code === req.params.code); if (idx > -1) { langs[idx] = { ...langs[idx], ...req.body }; writeDB('languages', langs); } res.json({ success: true }); });
-
 app.post('/api/admin/article/translate', auth, async (req, res) => {
     const { title, summary, content, coverUrl, targetLangs, type } = req.body;
     const articles = readDB('articles'); const groupId = uuidv4();
@@ -227,7 +248,6 @@ app.post('/api/admin/article/translate', auth, async (req, res) => {
         writeDB('articles', articles); res.json({ success: true });
     } catch (e) { res.status(502).json({ error: e.message }); }
 });
-
 app.put('/api/admin/article-group/:groupId', auth, async (req, res) => {
     const { groupId } = req.params; const { title, summary, content, coverUrl, targetLangs, type } = req.body;
     let articles = readDB('articles');
@@ -245,26 +265,6 @@ app.put('/api/admin/article-group/:groupId', auth, async (req, res) => {
     } catch (e) { res.status(502).json({ error: e.message }); }
 });
 app.delete('/api/admin/article-group/:groupId', auth, (req, res) => { writeDB('articles', readDB('articles').filter(a => a.groupId !== req.params.groupId && a.id !== req.params.groupId)); res.json({ success: true }); });
-
-// 追踪管理相关 API
-app.put('/api/admin/tracking/config', auth, (req, res) => { const config = readDB('tracking'); if (req.body.interval !== undefined) config.interval = Math.max(0, Number(req.body.interval) || 0); if (req.body.maxLogs !== undefined) config.maxLogs = Math.max(10, Number(req.body.maxLogs) || 100); writeDB('tracking', config); res.json({ success: true }); });
-app.post('/api/admin/tracking/source', auth, (req, res) => { const config = readDB('tracking'); config.sources.push({ name: req.body.name, url: req.body.url }); writeDB('tracking', config); res.json({ success: true }); });
-app.delete('/api/admin/tracking/source/:index', auth, (req, res) => { const config = readDB('tracking'); const idx = Number(req.params.index); if (idx >= 0 && idx < config.sources.length) { config.sources.splice(idx, 1); writeDB('tracking', config); } res.json({ success: true }); });
-app.post('/api/admin/tracking/logs/delete', auth, (req, res) => { let tracking = readDB('tracking'); tracking.logs = (tracking.logs || []).filter(l => !req.body.ids.includes(l.id)); writeDB('tracking', tracking); res.json({ success: true }); });
-app.post('/api/admin/tracking/mock', auth, (req, res) => { mockTrackingData(); res.json({ success: true }); });
-
-// 【新增】访问记录管理 API
-app.post('/api/admin/visits/status', auth, (req, res) => {
-    const { ids, status } = req.body;
-    let visits = readDB('visits');
-    visits.forEach(v => { if (ids.includes(v.id)) v.status = status; });
-    writeDB('visits', visits); res.json({ success: true });
-});
-app.post('/api/admin/visits/delete', auth, (req, res) => {
-    let visits = readDB('visits').filter(v => !req.body.ids.includes(v.id));
-    writeDB('visits', visits); res.json({ success: true });
-});
-
 app.get('/api/admin/translation-logs', auth, (req, res) => {
     const LOGS_FILE = path.join(DB_DIR, 'translation_logs.json');
     if (!fs.existsSync(LOGS_FILE)) return res.json({ totalCount: 0, totalChars: 0, logs: [] });
