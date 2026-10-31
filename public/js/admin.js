@@ -7,6 +7,7 @@ let allLangs = [];
 let allCategories = [];
 let globalTrackingConfig = { interval: 0, maxLogs: 100, sources: [], logs: [] };
 let globalSettings = {};
+let globalVisits = [];
 
 // ================= 后台界面多语言字典 =================
 const adminI18n = {
@@ -31,21 +32,17 @@ let currentAdminLang = localStorage.getItem('wad_admin_lang') || 'zh';
 
 // ================= 初始化与验证 =================
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. 恢复主题
     const t = localStorage.getItem('wad_theme') || 'dark';
     document.documentElement.classList.remove('dark', 'light'); 
     document.documentElement.classList.add(t);
     
-    // 2. 应用后台语言
     applyAdminLang();
     
-    // 3. 登录状态检查
     if (sessionStorage.getItem('wad_admin_pwd')) {
         document.getElementById('loginOverlay').style.display = 'none'; 
         fetchData();
     }
     
-    // 4. 初始化两个 Quill 编辑器 (发布与编辑弹窗)
     if(document.getElementById('editor-container')) {
         quill = new Quill('#editor-container', { 
             theme: 'snow', 
@@ -59,7 +56,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // 5. 绑定文章封面图上传 (发布)
     document.getElementById('artCoverFile')?.addEventListener('change', async (e) => {
         const file = e.target.files[0]; 
         if (!file) return;
@@ -71,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) { alert('图片上传失败，请重试'); }
     });
 
-    // 6. 绑定文章封面图上传 (编辑弹窗)
     document.getElementById('editArtCoverFile')?.addEventListener('change', async (e) => {
         const file = e.target.files[0]; 
         if (!file) return;
@@ -147,8 +142,8 @@ async function fetchData() {
     allCategories = data.categories || [];
     globalTrackingConfig = data.tracking || { interval: 0, maxLogs: 100, sources: [], logs: [] };
     globalSettings = data.settings || {};
+    globalVisits = data.visits || [];
 
-    // 1. 渲染下拉框与勾选框
     const catOptions = allCategories.map(c => `<option value="${c.id}">${currentAdminLang === 'zh' ? c.name_zh : c.name_en}</option>`).join('');
     if(document.getElementById('artType')) document.getElementById('artType').innerHTML = catOptions;
     if(document.getElementById('editArtType')) document.getElementById('editArtType').innerHTML = catOptions;
@@ -159,7 +154,6 @@ async function fetchData() {
         ).join('');
     }
 
-    // 2. 渲染右侧文章列表
     const groups = {};
     allArticles.forEach(a => { const gid = a.groupId || a.id; if (!groups[gid]) groups[gid] = []; groups[gid].push(a); });
     let articleHtml = '';
@@ -191,14 +185,12 @@ async function fetchData() {
         document.getElementById('articleList').innerHTML = articleHtml || '<div class="text-gray-500 text-center py-4">暂无文章</div>';
     }
 
-    // 3. 渲染分类管理
     if(document.getElementById('categoryList')) {
         document.getElementById('categoryList').innerHTML = allCategories.map(c => 
             `<tr><td class="font-mono">${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`
         ).join('');
     }
     
-    // 4. 渲染多语言管理
     if(document.getElementById('languageList')) {
         document.getElementById('languageList').innerHTML = allLangs.map(l => 
             `<tr>
@@ -213,7 +205,6 @@ async function fetchData() {
         ).join('');
     }
 
-    // 5. 渲染系统设置回显
     if(document.getElementById('autoLangSwitch')) document.getElementById('autoLangSwitch').checked = globalSettings.autoLang || false;
     if(document.getElementById('deeplKey1')) document.getElementById('deeplKey1').value = globalSettings.deeplKey1 || '';
     if(document.getElementById('deeplKey2')) document.getElementById('deeplKey2').value = globalSettings.deeplKey2 || '';
@@ -232,15 +223,177 @@ async function fetchData() {
         }).join('');
     }
 
-    // 6. 渲染追踪配置
     if(document.getElementById('trackingInterval')) document.getElementById('trackingInterval').value = globalTrackingConfig.interval || 0;
     if(document.getElementById('trackingMaxLogs')) document.getElementById('trackingMaxLogs').value = globalTrackingConfig.maxLogs || 100;
     renderSources();
     renderTrackingLogs();
 
-    // 7. 渲染数据汇总
-    loadStats();
+    // 初始化数据汇总
+    calculateStats();
+    applyFilters();
 }
+
+// ======================= 数据汇总相关逻辑 =======================
+function calculateStats() {
+    const total = globalVisits.length;
+    const visiting = globalVisits.filter(v => v.status === '访问中').length;
+    const unsubmitted = 0; 
+    const android = globalVisits.filter(v => v.os === 'Android' || v.os === 'iOS' && v.device === '手机').length;
+    const ios = globalVisits.filter(v => v.os === 'iOS').length;
+    const desktop = globalVisits.filter(v => v.device === '桌面').length;
+    const pending = globalVisits.filter(v => v.status === '等待审核').length;
+    const approved = globalVisits.filter(v => v.status === '已通过').length;
+    const rejected = globalVisits.filter(v => v.status === '已拒绝').length;
+
+    if(document.getElementById('statTotal')) document.getElementById('statTotal').innerText = total;
+    if(document.getElementById('statVisiting')) document.getElementById('statVisiting').innerText = visiting;
+    if(document.getElementById('statUnsubmitted')) document.getElementById('statUnsubmitted').innerText = unsubmitted;
+    if(document.getElementById('statAndroid')) document.getElementById('statAndroid').innerText = android;
+    if(document.getElementById('statIos')) document.getElementById('statIos').innerText = ios;
+    if(document.getElementById('statDesktop')) document.getElementById('statDesktop').innerText = desktop;
+    if(document.getElementById('statPending')) document.getElementById('statPending').innerText = pending;
+    if(document.getElementById('statApproved')) document.getElementById('statApproved').innerText = approved;
+    if(document.getElementById('statRejected')) document.getElementById('statRejected').innerText = rejected;
+}
+
+function applyFilters() {
+    if (!document.getElementById('filterDate')) return;
+    
+    const date = document.getElementById('filterDate').value;
+    const status = document.getElementById('filterStatus').value;
+    const device = document.getElementById('filterDevice').value;
+    const country = document.getElementById('filterCountry').value;
+    const os = document.getElementById('filterOS').value;
+    const browser = document.getElementById('filterBrowser').value;
+    const lang = document.getElementById('filterLang').value;
+    const keyword = document.getElementById('searchInput').value.toLowerCase();
+
+    let filtered = globalVisits.filter(v => {
+        if (status !== 'all' && v.status !== status) return false;
+        if (device !== 'all' && v.device !== device) return false;
+        if (country !== 'all' && v.country !== country) return false;
+        if (os !== 'all' && v.os !== os) return false;
+        if (browser !== 'all' && !v.browser.includes(browser)) return false;
+        if (lang !== 'all' && v.lang !== lang) return false;
+        
+        if (keyword) {
+            const str = `${v.ip} ${v.address} ${v.country} ${v.os} ${v.browser} ${v.lang} ${v.status}`.toLowerCase();
+            if (!str.includes(keyword)) return false;
+        }
+        return true;
+    });
+
+    if(document.getElementById('filteredCount')) document.getElementById('filteredCount').innerText = filtered.length;
+    renderVisitsList(filtered);
+}
+
+function resetFilters() {
+    document.getElementById('filterDate').value = 'all';
+    document.getElementById('filterStatus').value = 'all';
+    document.getElementById('filterDevice').value = 'all';
+    document.getElementById('filterCountry').value = 'all';
+    document.getElementById('filterOS').value = 'all';
+    document.getElementById('filterBrowser').value = 'all';
+    document.getElementById('filterLang').value = 'all';
+    document.getElementById('searchInput').value = '';
+    applyFilters();
+}
+
+function quickSearch(category, value) {
+    document.getElementById('searchInput').value = value;
+    applyFilters();
+}
+
+function renderVisitsList(visits) {
+    const list = document.getElementById('visitsList');
+    if (!list) return;
+
+    list.innerHTML = visits.map(v => {
+        let statusColor = 'bg-gray-100 text-gray-600';
+        if (v.status === '等待审核') statusColor = 'bg-yellow-100 text-yellow-700 border-yellow-300';
+        if (v.status === '已通过') statusColor = 'bg-green-100 text-green-700 border-green-300';
+        if (v.status === '已拒绝') statusColor = 'bg-red-100 text-red-700 border-red-300';
+
+        const submitTime = v.submitTime ? new Date(v.submitTime).toLocaleString() : '-';
+
+        return `
+        <div class="card p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 text-sm">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-3 mb-2 flex-wrap">
+                    <input type="checkbox" class="visit-cb accent-blue-600 w-4 h-4 cursor-pointer" value="${v.id}">
+                    <span class="font-mono text-gray-700 font-bold truncate">${v.address}</span>
+                    <span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded cursor-pointer" onclick="quickSearch('fingerprint', '${v.fingerprint}')">完整指纹</span>
+                    <span class="ml-auto text-xs px-2 py-1 rounded border ${statusColor} font-bold">${v.status}</span>
+                </div>
+                
+                <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                    <span>来源方式: <b class="cursor-pointer hover:text-blue-500" onclick="quickSearch('source', '${v.source}')">${v.source}</b></span>
+                    <span class="text-blue-400">提交时间: ${submitTime}</span>
+                    <span>停留: <b>${v.duration}s</b></span>
+                </div>
+
+                <div class="flex flex-wrap gap-2 mt-2">
+                    <span class="tag bg-gray-50 border border-gray-200 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-100" onclick="quickSearch('ip', '${v.ip}')">📍 IP: ${v.ip}</span>
+                    <span class="tag bg-gray-50 border border-gray-200 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-100" onclick="quickSearch('country', '${v.country}')">🌐 国家: ${v.country}</span>
+                    <span class="tag bg-gray-50 border border-gray-200 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-100" onclick="quickSearch('device', '${v.device}')">💻 设备: ${v.device}</span>
+                    <span class="tag bg-gray-50 border border-gray-200 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-100" onclick="quickSearch('os', '${v.os}')">🖥️ 系统: ${v.os}</span>
+                    <span class="tag bg-gray-50 border border-gray-200 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-100" onclick="quickSearch('browser', '${v.browser}')">🌍 浏览器: ${v.browser}</span>
+                    <span class="tag bg-gray-50 border border-gray-200 px-2 py-0.5 rounded cursor-pointer hover:bg-gray-100" onclick="quickSearch('lang', '${v.lang}')">🗣️ 语言: ${v.lang}</span>
+                </div>
+            </div>
+
+            <div class="flex gap-2 shrink-0">
+                <button onclick="updateVisitStatus('${v.id}', '已通过')" class="bg-green-500 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-green-600"><i class="fas fa-check"></i> 通过</button>
+                <button onclick="updateVisitStatus('${v.id}', '已拒绝')" class="bg-red-500 text-white px-3 py-1.5 rounded text-xs font-bold hover:bg-red-600"><i class="fas fa-times"></i> 拒绝</button>
+            </div>
+        </div>
+        `;
+    }).join('') || '<div class="text-center py-10 text-gray-500">暂无记录</div>';
+}
+
+async function updateVisitStatus(id, status) {
+    try {
+        await fetch('/api/admin/visits/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+            body: JSON.stringify({ ids: [id], status })
+        });
+        fetchData();
+    } catch (e) { alert('操作失败'); }
+}
+
+async function batchAction(status) {
+    const cbs = document.querySelectorAll('.visit-cb:checked');
+    if (cbs.length === 0) return alert('请先勾选要操作的数据');
+    if (!confirm(`确定要将选中的 ${cbs.length} 条数据标记为“${status}”吗？`)) return;
+    
+    const ids = Array.from(cbs).map(cb => cb.value);
+    try {
+        await fetch('/api/admin/visits/status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+            body: JSON.stringify({ ids, status })
+        });
+        fetchData();
+    } catch (e) { alert('操作失败'); }
+}
+
+function exportCSV() {
+    const rows = [['状态', '地址', 'IP', '国家', '设备', '系统', '浏览器', '语言', '提交时间', '指纹']];
+    const cbs = document.querySelectorAll('.visit-cb:checked');
+    const toExport = cbs.length > 0 ? globalVisits.filter(v => Array.from(cbs).map(c=>c.value).includes(v.id)) : globalVisits;
+
+    toExport.forEach(v => {
+        rows.push([v.status, v.address, v.ip, v.country, v.device, v.os, v.browser, v.lang, v.submitTime, v.fingerprint]);
+    });
+    
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.join(",")).join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent)); 
+    link.setAttribute("download", `visits_export_${new Date().getTime()}.csv`);
+    document.body.appendChild(link); link.click();
+}
+
 
 function renderSources() {
     const tbody = document.getElementById('sourceList');
@@ -261,12 +414,10 @@ function renderTrackingLogs() {
     const filterDate = document.getElementById('trackingFilterDate')?.value || '';
     let logs = globalTrackingConfig.logs || [];
 
-    // 筛选日期
     if (filterDate) {
         logs = logs.filter(l => l.time.startsWith(filterDate));
     }
 
-    // 排序
     logs.sort((a, b) => new Date(b.time) - new Date(a.time));
 
     list.innerHTML = logs.map(l => `
@@ -528,15 +679,6 @@ async function saveSettings() {
         const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, checkWaitTime }) });
         if (res.ok) { alert('系统配置已保存！'); fetchData(); } else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
     } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
-}
-
-async function loadStats() {
-    const res = await fetch('/api/admin/stats', { headers: { 'x-admin-pwd': adminPwd } }); 
-    const stats = await res.json();
-    if(document.getElementById('statTotal')) {
-        document.getElementById('statTotal').innerText = stats.total;
-        document.getElementById('categoryStats').innerHTML = allCategories.map(c => `<div class="card p-4"><div class="text-sm text-gray-500">${c.name_zh}</div><div class="text-2xl font-bold text-blue-500 mt-1">${stats.byCategory[c.id] || 0}</div></div>`).join('');
-    }
 }
 
 async function loadTranslationLogs() {
