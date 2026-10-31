@@ -5,6 +5,7 @@ let allArticles = [];
 let allLangs = []; 
 let allCategories = [];
 let trackingConfig = { interval: 0, sources: [] };
+let globalSettings = {};
 
 // ================= 后台界面多语言字典 =================
 const adminI18n = {
@@ -143,6 +144,7 @@ async function fetchData() {
     allLangs = data.languages; 
     allCategories = data.categories;
     trackingConfig = data.tracking || { interval: 0, sources: [] };
+    globalSettings = data.settings; // 保存配置到全局
 
     // 1. 渲染文章板块下拉框
     document.getElementById('artType').innerHTML = allCategories.map(c => 
@@ -182,10 +184,12 @@ async function fetchData() {
     ).join('');
 
     // 6. 回显系统设置
-    document.getElementById('autoLangSwitch').checked = data.settings.autoLang || false;
-    document.getElementById('deeplKey1').value = data.settings.deeplKey1 || '';
-    document.getElementById('deeplKey2').value = data.settings.deeplKey2 || '';
-    document.getElementById('toolDescZh').value = data.settings.toolDesc?.zh || '';
+    document.getElementById('autoLangSwitch').checked = globalSettings.autoLang || false;
+    document.getElementById('deeplKey1').value = globalSettings.deeplKey1 || '';
+    document.getElementById('deeplKey2').value = globalSettings.deeplKey2 || '';
+    
+    // 核心：渲染多语言描述输入框
+    renderToolDescInputs(globalSettings.toolDesc || {});
 
     // 7. 回显追踪配置
     document.getElementById('trackingInterval').value = trackingConfig.interval;
@@ -193,6 +197,71 @@ async function fetchData() {
     
     // 8. 加载统计数据
     loadStats();
+}
+
+// 渲染多语言描述输入框
+function renderToolDescInputs(toolDescData) {
+    const container = document.getElementById('toolDescContainer');
+    if (!container) return;
+
+    // 获取所有启用的语言
+    const activeLangs = allLangs.filter(l => l.active);
+    
+    container.innerHTML = activeLangs.map(lang => {
+        // 获取当前语言的已有翻译，如果没有则为空
+        const textVal = toolDescData[lang.code] || '';
+        const isMissing = !textVal; // 判断是否缺失翻译
+
+        return `
+            <div class="flex flex-col gap-1 p-3 rounded border" style="border-color: var(--cms-border); background: rgba(128,128,128,0.02);">
+                <div class="flex items-center justify-between">
+                    <label class="text-xs font-bold flex items-center gap-2" style="color: var(--cms-text-muted);">
+                        ${lang.flag} ${lang.name} (${lang.code})
+                        ${isMissing ? `<span class="text-red-500 text-[10px] bg-red-100 px-1.5 py-0.5 rounded">未翻译</span>` : `<span class="text-green-500 text-[10px] bg-green-100 px-1.5 py-0.5 rounded">已配置</span>`}
+                    </label>
+                    ${lang.code !== 'zh' ? `
+                        <button onclick="translateSingleDesc('${lang.code}')" class="text-xs text-blue-500 hover:underline">
+                            ✨ 自动机翻
+                        </button>
+                    ` : ''}
+                </div>
+                <textarea id="toolDesc_${lang.code}" class="input text-sm" rows="2" placeholder="请输入 ${lang.name} 的描述文本...">${textVal}</textarea>
+            </div>
+        `;
+    }).join('');
+}
+
+// 单发翻译某一条描述
+async function translateSingleDesc(targetLangCode) {
+    // 获取中文作为源文本
+    const zhText = document.getElementById('toolDesc_zh')?.value;
+    if (!zhText) return alert('请先填写中文描述，以便作为翻译源！');
+
+    const btn = event.target;
+    const oldText = btn.innerText;
+    btn.innerText = '翻译中...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/admin/translate-single', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+            body: JSON.stringify({ text: zhText, targetLang: targetLangCode })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            // 将翻译结果填入对应的输入框
+            document.getElementById(`toolDesc_${targetLangCode}`).value = data.translatedText;
+        } else {
+            alert('翻译失败: ' + (data.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('网络错误');
+    } finally {
+        btn.innerText = oldText;
+        btn.disabled = false;
+    }
 }
 
 function renderSources() {
@@ -381,25 +450,33 @@ async function saveSettings() {
     const deeplKey1 = document.getElementById('deeplKey1').value; 
     const deeplKey2 = document.getElementById('deeplKey2').value; 
     const autoLang = document.getElementById('autoLangSwitch').checked;
-    const toolDescZh = document.getElementById('toolDescZh').value; // 获取检测窗描述
     
+    // 收集所有语言的描述
+    const toolDesc = {};
+    allLangs.filter(l => l.active).forEach(lang => {
+        const el = document.getElementById(`toolDesc_${lang.code}`);
+        if (el) {
+            toolDesc[lang.code] = el.value.trim(); 
+        }
+    });
+
     const btn = event.target;
     const old = btn.innerText;
-    btn.innerText = '保存并翻译中...'; 
+    btn.innerText = '保存中...'; 
     btn.disabled = true;
 
     try {
         const res = await fetch('/api/admin/settings', { 
             method: 'PUT', 
             headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
-            body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, toolDescZh }) 
+            body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, toolDesc }) 
         }); 
-        const data = await res.json();
         
         if (res.ok) {
-            alert('已保存！如果修改了描述，系统已自动完成多语言翻译。');
-            fetchData();
+            alert('系统设置已保存！');
+            fetchData(); // 刷新数据，更新“已配置/未翻译”的标签状态
         } else {
+            const data = await res.json();
             alert('保存失败: ' + (data.error || '未知错误'));
         }
     } catch(e) {
