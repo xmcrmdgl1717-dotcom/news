@@ -4,157 +4,60 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ChainSafe CMS</title>
-<script>
-    // 防闪烁：尽早应用主题
-    (function () {
-        var t = localStorage.getItem('wad_theme') || 'dark';
-        document.documentElement.classList.remove('dark', 'light');
-        document.documentElement.classList.add(t);
-    })();
-</script>
+<script>(function () { var t = localStorage.getItem('wad_theme') || 'dark'; document.documentElement.classList.remove('dark', 'light'); document.documentElement.classList.add(t); })();</script>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' };</script>
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <style>
-    /* ================= 全局变量定义（核心修复） ================= */
-    :root {
-        /* 默认暗色模式变量 */
-        --cms-bg: #0b0e14;
-        --cms-sidebar: #0f172a;
-        --cms-card: #161b22;
-        --cms-border: #30363d;
-        --cms-text-main: #e6edf3;
-        --cms-text-muted: #8b949e;
-        --cms-accent: #f0b90b;
-        --cms-input-bg: #0d1117;
-    }
-
-    /* 亮色模式覆盖变量 */
-    html.light {
-        --cms-bg: #f3f4f6;
-        --cms-sidebar: #ffffff;
-        --cms-card: #ffffff;
-        --cms-border: #d1d5db;
-        --cms-text-main: #111827;
-        --cms-text-muted: #4b5563;
-        --cms-accent: #2563eb;
-        --cms-input-bg: #f9fafb;
-    }
-
-    /* ================= 基础样式重置 ================= */
-    * { cursor: default; }
-    button, a, select, .menu-item, input[type="checkbox"] { cursor: pointer !important; }
-    input, textarea { cursor: text !important; }
-    
-    body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        background-color: var(--cms-bg);
-        color: var(--cms-text-main);
-        transition: background-color 0.3s, color 0.3s;
-    }
-
-    /* ================= 核心组件样式 ================= */
-    .card {
-        background-color: var(--cms-card) !important;
-        border: 1px solid var(--cms-border) !important;
-        color: var(--cms-text-main) !important;
-        border-radius: 0.75rem;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-
-    .input {
-        background-color: var(--cms-input-bg) !important;
-        border: 1px solid var(--cms-border) !important;
-        color: var(--cms-text-main) !important;
-        border-radius: 0.375rem;
-        padding: 0.5rem;
-        outline: none;
-        transition: border-color 0.2s;
-    }
-    .input:focus {
-        border-color: var(--cms-accent) !important;
-        box-shadow: 0 0 0 1px var(--cms-accent) !important;
-    }
-
-    .sidebar {
-        background-color: var(--cms-sidebar) !important;
-        border-right: 1px solid var(--cms-border) !important;
-    }
-
-    .menu-item {
-        color: var(--cms-text-muted);
-        border-right: 4px solid transparent;
-        transition: all 0.2s;
-    }
-    .menu-item:hover {
-        background-color: rgba(128, 128, 128, 0.1);
-    }
-    .menu-item.active {
-        background-color: rgba(240, 185, 11, 0.1);
-        color: var(--cms-accent) !important;
-        border-right-color: var(--cms-accent);
-        font-weight: bold;
-    }
-    html.light .menu-item.active {
-        background-color: rgba(37, 99, 235, 0.1);
-    }
-
-    /* 针对表格强制指定颜色 */
-    table th {
-        color: var(--cms-text-muted) !important;
-        background-color: rgba(128, 128, 128, 0.05) !important;
-        font-weight: bold;
-    }
-    table td {
-        color: var(--cms-text-main) !important;
-    }
-    table tr {
-        border-bottom: 1px solid var(--cms-border) !important;
-    }
-
-    /* ================= 页面切换与弹窗 ================= */
-    .content-section { display: none; }
-    .content-section.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+    /* 彻底修复颜色问题 */
+    :root { --cms-bg: #0b0e14; --cms-sidebar: #0f172a; --cms-card: #161b22; --cms-border: #30363d; --cms-text-main: #e6edf3; --cms-text-muted: #8b949e; --cms-accent: #f0b90b; --cms-input-bg: #0d1117; }
+    html.light { --cms-bg: #f3f4f6; --cms-sidebar: #ffffff; --cms-card: #ffffff; --cms-border: #d1d5db; --cms-text-main: #111827; --cms-text-muted: #4b5563; --cms-accent: #2563eb; --cms-input-bg: #f9fafb; }
+    * { cursor: default; } button, a, select, .menu-item, input[type="checkbox"], input[type="file"] { cursor: pointer !important; } input, textarea { cursor: text !important; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--cms-bg); color: var(--cms-text-main); transition: background-color 0.3s, color 0.3s; }
+    .card { background-color: var(--cms-card) !important; border: 1px solid var(--cms-border) !important; color: var(--cms-text-main) !important; border-radius: 0.75rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
+    .input { background-color: var(--cms-input-bg) !important; border: 1px solid var(--cms-border) !important; color: var(--cms-text-main) !important; border-radius: 0.375rem; padding: 0.5rem; outline: none; transition: border-color 0.2s; width: 100%; }
+    .input:focus { border-color: var(--cms-accent) !important; box-shadow: 0 0 0 1px var(--cms-accent) !important; }
+    .sidebar { background-color: var(--cms-sidebar) !important; border-right: 1px solid var(--cms-border) !important; }
+    .menu-item { color: var(--cms-text-muted); border-right: 4px solid transparent; transition: all 0.2s; padding: 12px 24px; }
+    .menu-item:hover { background-color: rgba(128, 128, 128, 0.1); }
+    .menu-item.active { background-color: rgba(240, 185, 11, 0.1); color: var(--cms-accent) !important; border-right-color: var(--cms-accent); font-weight: bold; }
+    html.light .menu-item.active { background-color: rgba(37, 99, 235, 0.1); }
+    table th { color: var(--cms-text-muted) !important; background-color: rgba(128, 128, 128, 0.05) !important; font-weight: bold; border-bottom: 1px solid var(--cms-border); padding: 12px; text-align: left; }
+    table td { color: var(--cms-text-main) !important; padding: 12px; border-bottom: 1px solid var(--cms-border); }
+    .content-section { display: none; } .content-section.active { display: block; animation: fadeIn 0.3s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
-    .modal { display: none; position: fixed; inset: 0; background-color: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
-    .modal.active { display: flex; }
-
-    /* Quill */
-    .ql-toolbar { background-color: var(--cms-sidebar) !important; border-color: var(--cms-border) !important; }
-    .ql-container { background-color: white !important; color: black !important; border-color: var(--cms-border) !important; min-height: 300px; }
+    .modal { display: none; position: fixed; inset: 0; background-color: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; backdrop-filter: blur(4px); } .modal.active { display: flex; }
+    .ql-toolbar { background-color: var(--cms-sidebar) !important; border-color: var(--cms-border) !important; } .ql-container { background-color: white !important; color: black !important; border-color: var(--cms-border) !important; min-height: 250px; }
 </style>
 </head>
 <body class="h-screen flex overflow-hidden">
 
-    <!-- 登录遮罩 -->
     <div id="loginOverlay" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm">
         <div class="card p-8 w-96 text-center">
             <h2 class="text-2xl font-bold mb-6" style="color: var(--cms-accent);">ChainSafe CMS</h2>
-            <input type="password" id="adminPwd" placeholder="请输入后台密码" class="input w-full mb-4 p-3">
+            <input type="password" id="adminPwd" placeholder="请输入后台密码" class="input mb-4 p-3">
             <button onclick="doLogin()" class="w-full py-3 rounded-lg font-bold transition" style="background-color: var(--cms-accent); color: #000;">登录</button>
         </div>
     </div>
 
-    <!-- 侧边栏 -->
     <aside class="w-64 sidebar flex flex-col hidden md:flex z-10 relative">
         <div class="h-16 flex items-center justify-between px-6 font-bold text-xl border-b" style="color: var(--cms-accent); border-color: var(--cms-border);">
             <span>ChainSafe CMS</span>
             <button onclick="toggleTheme()" class="text-gray-500 hover:text-black dark:hover:text-white" title="切换主题">
-                <!-- 太阳/月亮图标 -->
                 <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                 <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
             </button>
         </div>
         
         <nav class="flex-1 py-4 overflow-y-auto space-y-1">
-            <div class="menu-item px-6 py-3 active" onclick="switchTab('dashboard', this)" data-i18n="navDashboard">📊 数据汇总</div>
-            <div class="menu-item px-6 py-3" onclick="switchTab('articles', this)" data-i18n="navArticles">📝 文章管理</div>
-            <div class="menu-item px-6 py-3" onclick="switchTab('categories', this)" data-i18n="navCategories">📁 板块管理</div>
-            <div class="menu-item px-6 py-3" onclick="switchTab('languages', this)" data-i18n="navLanguages">🌐 多语言管理</div>
-            <div class="menu-item px-6 py-3" onclick="switchTab('translogs', this)" data-i18n="navTranslogs">📈 翻译汇总</div>
-            <div class="menu-item px-6 py-3" onclick="switchTab('settings', this)" data-i18n="navSettings">⚙️ 系统设置</div>
+            <div class="menu-item active" onclick="switchTab('dashboard', this)" data-i18n="navDashboard">📊 数据汇总</div>
+            <div class="menu-item" onclick="switchTab('articles', this)" data-i18n="navArticles">📝 文章管理</div>
+            <div class="menu-item" onclick="switchTab('categories', this)" data-i18n="navCategories">📁 板块管理</div>
+            <div class="menu-item" onclick="switchTab('tracking', this)" data-i18n="navTracking">📡 链上追踪管理</div>
+            <div class="menu-item" onclick="switchTab('languages', this)" data-i18n="navLanguages">🌐 多语言管理</div>
+            <div class="menu-item" onclick="switchTab('translogs', this)" data-i18n="navTranslogs">📈 翻译汇总</div>
+            <div class="menu-item" onclick="switchTab('settings', this)" data-i18n="navSettings">⚙️ 系统设置</div>
         </nav>
         
         <div class="p-4 border-t space-y-2" style="border-color: var(--cms-border);">
@@ -163,31 +66,26 @@
         </div>
     </aside>
 
-    <!-- 主内容区 -->
     <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
         <header class="h-16 border-b flex items-center justify-between px-6" style="background-color: var(--cms-sidebar); border-color: var(--cms-border);">
-            <h2 class="text-lg font-bold" id="pageTitle" data-i18n="pageDashboard" style="color: var(--cms-text-main);">数据汇总</h2>
-            <div class="flex items-center gap-4">
-                <button onclick="toggleAdminLang()" class="text-sm px-3 py-1.5 rounded-lg border transition font-bold" style="border-color: var(--cms-border); color: var(--cms-text-main);">
-                    <span id="adminLangLabel">EN</span>
-                </button>
-            </div>
+            <h2 class="text-lg font-bold" id="pageTitle" data-i18n="pageDashboard">数据汇总</h2>
+            <button onclick="toggleAdminLang()" class="text-sm px-3 py-1.5 rounded-lg border transition font-bold" style="border-color: var(--cms-border); color: var(--cms-text-main);">
+                <span id="adminLangLabel">EN</span>
+            </button>
         </header>
 
         <div class="flex-1 overflow-y-auto p-6" id="mainContent">
             
-            <!-- 0. 数据汇总 -->
             <div id="tab-dashboard" class="content-section active">
                 <div class="grid grid-cols-3 gap-6 mb-6">
                     <div class="card p-6 border-l-4" style="border-left-color: var(--cms-accent);">
-                        <div class="text-sm font-bold mb-1" data-i18n="statTotal" style="color: var(--cms-text-muted);">总文章记录数 (全语言)</div>
+                        <div class="text-sm font-bold mb-1" data-i18n="statTotal" style="color: var(--cms-text-muted);">总文章记录数</div>
                         <div class="text-3xl font-bold" id="statTotal">0</div>
                     </div>
                     <div id="categoryStats" class="col-span-2 grid grid-cols-2 gap-4"></div>
                 </div>
             </div>
 
-            <!-- 1. 文章管理 -->
             <div id="tab-articles" class="content-section">
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     <div class="card p-6">
@@ -195,14 +93,24 @@
                         <div class="space-y-4 mb-4">
                             <div>
                                 <label class="block text-sm font-bold mb-1" data-i18n="labelCategory" style="color: var(--cms-text-muted);">所属板块</label>
-                                <select id="artType" class="input w-full"></select>
+                                <select id="artType" class="input"></select>
                             </div>
                             <div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);">
-                                <p class="text-sm font-bold mb-2" data-i18n="labelLangs" style="color: var(--cms-text-muted);">发布语言（勾选后自动机翻）：</p>
+                                <p class="text-sm font-bold mb-2" data-i18n="labelLangs" style="color: var(--cms-text-muted);">发布语言：</p>
                                 <div class="flex gap-4 flex-wrap" id="articleLangCheckboxes"></div>
                             </div>
-                            <input type="text" id="artTitle" placeholder="源标题" class="input w-full" data-i18n-placeholder="phTitle">
-                            <textarea id="artSummary" placeholder="源摘要" class="input w-full" rows="2" data-i18n-placeholder="phSummary"></textarea>
+                            <input type="text" id="artTitle" placeholder="源标题" class="input" data-i18n-placeholder="phTitle">
+                            <textarea id="artSummary" placeholder="源摘要" class="input" rows="2" data-i18n-placeholder="phSummary"></textarea>
+                            
+                            <div>
+                                <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">文章封面图</label>
+                                <p class="text-xs text-blue-500 mb-2">建议尺寸：1200x630 像素 (16:9)，最大不超过 2MB</p>
+                                <div class="flex items-center gap-2">
+                                    <input type="file" id="artCoverFile" accept="image/*" class="input text-sm">
+                                    <input type="text" id="artCoverUrl" placeholder="图片URL" class="input text-sm" readonly>
+                                </div>
+                            </div>
+
                             <div class="bg-white rounded-lg"><div id="editor-container"></div></div>
                         </div>
                         <button onclick="submitArticle()" id="articleSubmitBtn" class="px-6 py-2 rounded font-bold transition hover:opacity-90" style="background-color: var(--cms-accent); color: #000;" data-i18n="btnPublish">智能翻译并发布</button>
@@ -215,7 +123,6 @@
                 </div>
             </div>
 
-            <!-- 2. 板块管理 -->
             <div id="tab-categories" class="content-section">
                 <div class="card p-6 mb-6">
                     <h3 class="font-bold text-lg mb-4" data-i18n="addCategoryTitle" style="color: var(--cms-text-main);">添加新板块</h3>
@@ -227,106 +134,100 @@
                     <button onclick="addCategory()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;" data-i18n="btnAdd">添加</button>
                 </div>
                 <div class="card overflow-hidden">
-                    <table class="w-full text-left text-sm">
-                        <thead>
-                            <tr><th class="p-4" data-i18n="thId">ID</th><th class="p-4" data-i18n="thZhName">中文名</th><th class="p-4" data-i18n="thEnName">英文名</th><th class="p-4" data-i18n="thAction">操作</th></tr>
-                        </thead>
+                    <table class="w-full text-sm">
+                        <thead><tr><th>ID</th><th>中文名</th><th>英文名</th><th>操作</th></tr></thead>
                         <tbody id="categoryList"></tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- 3. 多语言管理 -->
+            <!-- 追踪管理 -->
+            <div id="tab-tracking" class="content-section">
+                <div class="card p-6 mb-6">
+                    <h3 class="font-bold text-lg mb-4" style="color: var(--cms-text-main);">定时抓取配置</h3>
+                    <div class="flex items-center gap-4 mb-4">
+                        <label class="text-sm" style="color: var(--cms-text-muted);">抓取频率 (分钟)</label>
+                        <input type="number" id="trackingInterval" class="input" style="width: 120px;" min="0" placeholder="0为实时">
+                        <span class="text-xs text-red-500">0 代表实时，若太快建议写 1 或以上。</span>
+                    </div>
+                    <button onclick="saveTrackingConfig()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;">保存配置</button>
+                </div>
+
+                <div class="card p-6">
+                    <h3 class="font-bold text-lg mb-4" style="color: var(--cms-text-main);">数据源管理</h3>
+                    <div class="grid grid-cols-3 gap-3 mb-4">
+                        <input type="text" id="newSourceName" placeholder="数据源名称" class="input">
+                        <input type="text" id="newSourceUrl" placeholder="API URL" class="input">
+                        <button onclick="addSource()" class="bg-blue-600 text-white rounded font-bold hover:bg-blue-700">添加数据源</button>
+                    </div>
+                    <table class="w-full text-sm">
+                        <thead><tr><th>名称</th><th>地址</th><th>操作</th></tr></thead>
+                        <tbody id="sourceList"></tbody>
+                    </table>
+                </div>
+            </div>
+
             <div id="tab-languages" class="content-section">
                 <div class="card p-6 mb-6">
                     <h3 class="font-bold text-lg mb-4" data-i18n="addLangTitle" style="color: var(--cms-text-main);">添加新语言</h3>
                     <div class="grid grid-cols-3 gap-3 mb-3">
                         <input type="text" id="newLangCode" placeholder="代码 (如 fr)" class="input">
                         <input type="text" id="newLangName" placeholder="名称" class="input">
-                        <input type="text" id="newLangFlag" placeholder="国旗 (如 🇫🇷)" class="input">
+                        <input type="text" id="newLangFlag" placeholder="国旗" class="input">
                     </div>
-                    <button onclick="addLanguage()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;" data-i18n="btnAdd">添加</button>
+                    <button onclick="addLanguage()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">添加</button>
                 </div>
                 <div class="card overflow-hidden">
-                    <table class="w-full text-left text-sm">
-                        <thead>
-                            <tr><th class="p-4" data-i18n="thCode">代码</th><th class="p-4" data-i18n="thName">名称</th><th class="p-4" data-i18n="thStatus">状态</th><th class="p-4" data-i18n="thAction">操作</th></tr>
-                        </thead>
+                    <table class="w-full text-sm">
+                        <thead><tr><th>代码</th><th>名称</th><th>状态</th><th>操作</th></tr></thead>
                         <tbody id="languageList"></tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- 4. 翻译汇总 -->
             <div id="tab-translogs" class="content-section">
                 <div class="grid grid-cols-2 gap-6 mb-6">
-                    <div class="card p-6"><div class="text-sm font-bold" data-i18n="transCount" style="color: var(--cms-text-muted);">总翻译次数</div><div class="text-3xl font-bold text-blue-500" id="logTotalCount">0</div></div>
-                    <div class="card p-6"><div class="text-sm font-bold" data-i18n="transChars" style="color: var(--cms-text-muted);">总消耗字符</div><div class="text-3xl font-bold text-green-500" id="logTotalChars">0</div></div>
+                    <div class="card p-6"><div class="text-sm font-bold" style="color: var(--cms-text-muted);">总翻译次数</div><div class="text-3xl font-bold text-blue-500" id="logTotalCount">0</div></div>
+                    <div class="card p-6"><div class="text-sm font-bold" style="color: var(--cms-text-muted);">总消耗字符</div><div class="text-3xl font-bold text-green-500" id="logTotalChars">0</div></div>
                 </div>
                 <div class="card overflow-hidden">
-                    <table class="w-full text-left text-sm">
-                        <thead>
-                            <tr><th class="p-4" data-i18n="thTime">时间</th><th class="p-4" data-i18n="thTargetLang">目标语言</th><th class="p-4" data-i18n="thChars">消耗字符</th></tr>
-                        </thead>
+                    <table class="w-full text-sm">
+                        <thead><tr><th>时间</th><th>目标语言</th><th>消耗字符</th></tr></thead>
                         <tbody id="translationLogList"></tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- 5. 系统设置 -->
             <div id="tab-settings" class="content-section">
                 <div class="card p-6 max-w-2xl mb-6">
                     <h3 class="font-bold text-lg mb-4" data-i18n="settingsTitle" style="color: var(--cms-text-main);">语言与翻译配置</h3>
-                    
                     <div class="flex items-center justify-between border-b pb-4 mb-4" style="border-color: var(--cms-border);">
                         <div>
                             <div class="font-bold" data-i18n="autoLang" style="color: var(--cms-text-main);">自动 IP 识别语言</div>
-                            <div class="text-sm" data-i18n="autoLangDesc" style="color: var(--cms-text-muted);">开启后，用户首次访问将根据 IP 自动选择对应语言</div>
+                            <div class="text-sm" data-i18n="autoLangDesc" style="color: var(--cms-text-muted);">开启后，用户首次访问根据 IP 自动选择语言</div>
                         </div>
                         <input type="checkbox" id="autoLangSwitch" class="w-5 h-5" style="accent-color: var(--cms-accent);">
                     </div>
-
                     <div class="space-y-4 mb-6">
                         <div>
                             <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">DeepL API Key 1 (主)</label>
-                            <input type="text" id="deeplKey1" class="input w-full" placeholder="例如: xxxx:fx">
+                            <input type="text" id="deeplKey1" class="input" placeholder="xxxx:fx">
                         </div>
                         <div>
                             <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">DeepL API Key 2 (备用轮询)</label>
-                            <input type="text" id="deeplKey2" class="input w-full" placeholder="例如: xxxx:fx">
+                            <input type="text" id="deeplKey2" class="input" placeholder="xxxx:fx">
                         </div>
                     </div>
-                    <button onclick="saveSettings()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;" data-i18n="btnSaveConfig">保存配置</button>
+                    <button onclick="saveSettings()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存配置</button>
                 </div>
             </div>
 
         </div>
     </main>
 
-    <!-- 字典编辑弹窗 -->
-    <div id="editLangModal" class="modal">
-        <div class="card p-6 w-full max-w-4xl max-h-[90vh] flex flex-col">
-            <h3 class="font-bold text-lg mb-4" data-i18n="editDictTitle" style="color: var(--cms-accent);">编辑语言字典 JSON</h3>
-            <input type="hidden" id="editLangCode">
-            <textarea id="editLangDict" class="input w-full flex-1 p-3 font-mono text-sm mb-4" rows="15"></textarea>
-            <div class="flex gap-2 justify-end">
-                <button onclick="saveLangDict()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;" data-i18n="btnSave">保存</button>
-                <button onclick="document.getElementById('editLangModal').classList.remove('active')" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-border); color: var(--cms-text-main);" data-i18n="btnCancel">取消</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- 修改密码弹窗 -->
-    <div id="changePwdModal" class="modal">
-        <div class="card p-6 w-96">
-            <h3 class="font-bold text-lg mb-4" data-i18n="changePwdTitle" style="color: var(--cms-text-main);">修改后台密码</h3>
-            <input type="password" id="newPwdInput" placeholder="输入新密码" class="input w-full mb-4" data-i18n-placeholder="phNewPwd">
-            <div class="flex gap-2">
-                <button onclick="savePassword()" class="flex-1 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;" data-i18n="btnSave">保存</button>
-                <button onclick="document.getElementById('changePwdModal').classList.remove('active')" class="flex-1 py-2 rounded font-bold transition" style="background-color: var(--cms-border); color: var(--cms-text-main);" data-i18n="btnCancel">取消</button>
-            </div>
-        </div>
-    </div>
+    <!-- 弹窗们 -->
+    <div id="editLangModal" class="modal"><div class="card p-6 w-full max-w-4xl max-h-[90vh] flex flex-col"><h3 class="font-bold text-lg mb-4" style="color: var(--cms-accent);">编辑语言字典</h3><input type="hidden" id="editLangCode"><textarea id="editLangDict" class="input flex-1 p-3 font-mono text-sm mb-4" rows="15"></textarea><div class="flex gap-2 justify-end"><button onclick="saveLangDict()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存</button><button onclick="document.getElementById('editLangModal').classList.remove('active')" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-border);">取消</button></div></div></div>
+    <div id="changePwdModal" class="modal"><div class="card p-6 w-96"><h3 class="font-bold text-lg mb-4">修改密码</h3><input type="password" id="newPwdInput" placeholder="新密码" class="input mb-4"><div class="flex gap-2"><button onclick="savePassword()" class="flex-1 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存</button><button onclick="document.getElementById('changePwdModal').classList.remove('active')" class="flex-1 py-2 rounded font-bold" style="background-color: var(--cms-border);">取消</button></div></div></div>
 
     <script src="/js/admin.js"></script>
 </body>
