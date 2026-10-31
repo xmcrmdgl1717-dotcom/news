@@ -22,15 +22,34 @@ const DB_FILES = {
     tracking: path.join(DB_DIR, 'tracking.json')
 };
 
+// 【全面补全】基准字典
 const BASE_DICT = {
+    // 站点导航与通用
     siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪",
     loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据",
-    catAll: "全部事件", toolTitle: "🛡️ 链上地址安全检测", toolPlaceholder: "输入地址...", toolBtn: "立即检测", 
-    toolLoading: "比对中...", toolReset: "重新检测 ✕",
-    checkingTitle: "正在检测中...",
-    checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库",
+    
+    // 首页与分类
+    catAll: "全部事件", 
+    
+    // 链上追踪
+    trackTag: "高危", btnMonitor: "加入监控", btnCopy: "复制地址",
+    alertWatchAdded: "监控已加入", alertAddrCopied: "地址已复制",
+    
+    // 悬浮检测窗
+    toolTitle: "🛡️ 链上地址安全检测", toolPlaceholder: "输入 ETH / BTC 钱包地址...", 
+    toolBtn: "立即检测", toolReset: "重新输入检测 ✕",
+    checkingTitle: "正在检测中...", checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库",
     resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", 
-    resDanger: "❌ 高危警告", resDangerDesc: "疑似黑客地址！"
+    resDanger: "❌ 高危警告", resDangerDesc: "疑似黑客地址！",
+    alertInvalidAddr: "请输入有效的钱包地址格式！",
+    
+    // Safari 拦截
+    safariTitle: "请使用 Safari 浏览器打开", 
+    safariDesc: "系统检测到您正在使用非苹果官方 Safari 访问，为了您的安全请您使用苹果官方 Safari 打开访问。",
+    copyBtn: "复制当前链接", copied: "已复制",
+    
+    // 文章详情页
+    backBtn: "← 返回上一页", articleLoading: "正在加载文章内容...", articleNotFound: "文章不存在"
 };
 
 // 初始化数据文件
@@ -65,17 +84,14 @@ async function seedInitialArticles() {
     try {
         let articles = readDB('articles');
         if (articles.length === 0) {
-            console.log('⏳ 检测到文章库为空，正在注入初始文章...');
             const now = new Date().toISOString();
             const seedData = [
-                { id: uuidv4(), groupId: "g1", lang: "zh", type: "hack", title: "币安遭遇巨额黑客攻击！何一表态全额兜底", summary: "10月30日币安联合创始人何一公开发声，明确表示将全额兜底此次被盗资产。", content: "<p>10月30日币安联合创始人何一公开发声，明确表示将全额兜底此次被盗资产。据悉，被搬空的钱包，正是币安拿来给客户兜底的那个钱包。56亿资产被盗，稳定币冻结但ETH难以追回。</p>", coverUrl: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80", time: now },
-                { id: uuidv4(), groupId: "g1", lang: "en", type: "hack", title: "Binance Suffers Massive Hack! Yi He Promises Full Compensation", summary: "Binance co-founder Yi He publicly stated on Oct 30 that the exchange will fully cover the stolen assets.", content: "<p>Binance co-founder Yi He publicly stated on Oct 30 that the exchange will fully cover the stolen assets. The emptied wallet was the one used by Binance to compensate customers. 5.6 billion stolen.</p>", coverUrl: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80", time: now },
-                { id: uuidv4(), groupId: "g2", lang: "zh", type: "normal", title: "以太坊基金会发布最新路线图", summary: "以太坊核心开发者会议确定了下一次网络升级的时间节点，重点解决Layer2互操作性问题。", content: "<p>以太坊核心开发者会议确定了下一次网络升级的时间节点，重点解决Layer2互操作性及降低Gas费用。</p>", coverUrl: "https://images.unsplash.com/photo-1622630998477-20aa696ecb05?auto=format&fit=crop&w=400&q=80", time: now },
-                { id: uuidv4(), groupId: "g3", lang: "zh", type: "hack", title: "某知名 DeFi 协议遭遇闪电贷攻击", summary: "据慢雾安全团队监测，某知名DeFi协议遭遇闪电贷攻击，损失约1200万美元。", content: "<p>据慢雾安全团队监测，某知名DeFi协议遭遇闪电贷攻击，损失约1200万美元。目前攻击者已将资金转入Tornado Cash。</p>", coverUrl: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=400&q=80", time: now },
-                { id: uuidv4(), groupId: "g4", lang: "zh", type: "scam", title: "警惕：新型 Discord 钓鱼链接蔓延", summary: "近期出现大量伪造官方机器人的钓鱼骗局，请勿点击不明 Mint 链接。", content: "<p>Web3 安全团队监测到，近期有黑客利用被攻破的 Discord 服务器，伪造官方机器人发送虚假的空投链接。已有数百名用户中招。</p>", coverUrl: "https://images.unsplash.com/photo-1614064641938-3bbee52942c7?auto=format&fit=crop&w=400&q=80", time: now }
+                { id: uuidv4(), groupId: "g1", lang: "zh", type: "hack", title: "币安遭遇巨额黑客攻击！何一表态全额兜底", summary: "10月30日币安联合创始人何一公开发声，明确表示将全额兜底此次被盗资产。", content: "<p>10月30日币安联合创始人何一公开发声，明确表示将全额兜底此次被盗资产。</p>", coverUrl: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80", time: now },
+                { id: uuidv4(), groupId: "g1", lang: "en", type: "hack", title: "Binance Suffers Massive Hack! Yi He Promises Full Compensation", summary: "Binance co-founder Yi He publicly stated on Oct 30 that the exchange will fully cover the stolen assets.", content: "<p>Binance co-founder Yi He publicly stated on Oct 30 that the exchange will fully cover the stolen assets.</p>", coverUrl: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80", time: now },
+                { id: uuidv4(), groupId: "g2", lang: "zh", type: "normal", title: "以太坊基金会发布最新路线图", summary: "以太坊核心开发者会议确定了下一次网络升级的时间节点。", content: "<p>以太坊核心开发者会议确定了下一次网络升级的时间节点。</p>", coverUrl: "https://images.unsplash.com/photo-1622630998477-20aa696ecb05?auto=format&fit=crop&w=400&q=80", time: now },
+                { id: uuidv4(), groupId: "g3", lang: "zh", type: "hack", title: "某知名 DeFi 协议遭遇闪电贷攻击", summary: "据慢雾安全团队监测，某知名DeFi协议遭遇闪电贷攻击。", content: "<p>据慢雾安全团队监测，某知名DeFi协议遭遇闪电贷攻击。</p>", coverUrl: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=400&q=80", time: now }
             ];
             writeDB('articles', seedData);
-            console.log('✅ 初始文章注入成功！');
         }
     } catch (e) { console.error('❌ 注入初始文章失败:', e); }
 }
@@ -122,7 +138,6 @@ async function translateText(textArray, targetLang, sourceLang = 'ZH') {
 
         return response.data.translations.map(t => t.text);
     } catch (error) {
-        console.error('DeepL API 请求失败:', error.response?.data || error.message);
         throw new Error('翻译失败，请检查 API Key 是否正确或额度是否耗尽。');
     }
 }
@@ -138,7 +153,12 @@ app.get('/api/articles', (req, res) => {
     res.json(articles.sort((a, b) => new Date(b.time) - new Date(a.time)));
 });
 app.get('/api/articles/:id', (req, res) => { res.json(readDB('articles').find(a => a.id === req.params.id) || null); });
-app.get('/api/tracking', (req, res) => { res.json([{ id: "1", title: "Lazarus Group", address: "0x098B716B8Aaf21512996dC57EB0615e2383E2f96", desc: "近期异动：转移至 Tornado Cash。", tag: "FBI 通缉" }]); });
+app.get('/api/tracking', (req, res) => { 
+    res.json([
+        { id: "1", title: "Lazarus Group", address: "0x098B716B8Aaf21512996dC57EB0615e2383E2f96", desc: "近期异动：转移至 Tornado Cash。", tag: "FBI 通缉" },
+        { id: "2", title: "某 DeFi 攻击者", address: "0xFb3bD022D5DAcF95EFFcf249C0b79f7eDc08cD22", desc: "正在转移盗取资金。", tag: "高危" }
+    ]); 
+});
 
 // ================= 后台 API =================
 const auth = (req, res, next) => {
@@ -169,9 +189,7 @@ app.put('/api/admin/settings', auth, async (req, res) => {
     if (req.body.toolDescZh !== undefined && req.body.targetLangs !== undefined) {
         const zhDesc = req.body.toolDescZh;
         const targetLangs = req.body.targetLangs;
-        
-        let newToolDesc = oldSettings.toolDesc || {};
-        newToolDesc.zh = zhDesc;
+        let newToolDesc = oldSettings.toolDesc || { zh: zhDesc };
 
         try {
             const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
@@ -182,9 +200,7 @@ app.put('/api/admin/settings', auth, async (req, res) => {
                 }
             }
             newSettings.toolDesc = newToolDesc;
-        } catch (e) {
-            return res.status(500).json({ error: e.message });
-        }
+        } catch (e) { return res.status(500).json({ error: e.message }); }
     }
 
     delete newSettings.toolDescZh;
@@ -211,7 +227,6 @@ app.put('/api/admin/languages/:code', auth, (req, res) => {
     if (idx > -1) { langs[idx] = { ...langs[idx], ...req.body }; writeDB('languages', langs); } res.json({ success: true });
 });
 
-// 发布文章
 app.post('/api/admin/article/translate', auth, async (req, res) => {
     const { title, summary, content, coverUrl, targetLangs, type } = req.body;
     const articles = readDB('articles'); const groupId = uuidv4();
@@ -226,49 +241,32 @@ app.post('/api/admin/article/translate', auth, async (req, res) => {
     } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
-// 【新增】更新整组文章（编辑用）
 app.put('/api/admin/article-group/:groupId', auth, async (req, res) => {
     const { groupId } = req.params;
     const { title, summary, content, coverUrl, targetLangs, type } = req.body;
     let articles = readDB('articles');
     
-    // 1. 更新源语言 (默认从中文作为主语言修改)
     let sourceArticle = articles.find(a => a.groupId === groupId && a.lang === 'zh');
     if (sourceArticle) {
-        sourceArticle.title = title;
-        sourceArticle.summary = summary;
-        sourceArticle.content = content;
-        sourceArticle.coverUrl = coverUrl;
-        sourceArticle.type = type;
-        sourceArticle.time = new Date().toISOString();
+        sourceArticle.title = title; sourceArticle.summary = summary;
+        sourceArticle.content = content; sourceArticle.coverUrl = coverUrl;
+        sourceArticle.type = type; sourceArticle.time = new Date().toISOString();
     }
 
-    // 2. 处理目标语言
     const foreignLangs = targetLangs.filter(lang => lang !== 'zh');
     try {
         for (let lang of foreignLangs) {
             const translated = await translateText([title, summary, content], lang);
             let existing = articles.find(a => a.groupId === groupId && a.lang === lang);
-            
             if (existing) {
-                // 更新已有翻译
-                existing.title = translated[0];
-                existing.summary = translated[1];
-                existing.content = translated[2];
-                existing.coverUrl = coverUrl;
-                existing.type = type;
-                existing.time = new Date().toISOString();
+                existing.title = translated[0]; existing.summary = translated[1];
+                existing.content = translated[2]; existing.coverUrl = coverUrl;
+                existing.type = type; existing.time = new Date().toISOString();
             } else {
-                // 新建之前没有的翻译
-                articles.push({
-                    id: uuidv4(), groupId, lang, type,
-                    title: translated[0], summary: translated[1], content: translated[2],
-                    coverUrl, time: new Date().toISOString()
-                });
+                articles.push({ id: uuidv4(), groupId, lang, type, title: translated[0], summary: translated[1], content: translated[2], coverUrl, time: new Date().toISOString() });
             }
         }
-        writeDB('articles', articles);
-        res.json({ success: true });
+        writeDB('articles', articles); res.json({ success: true });
     } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
