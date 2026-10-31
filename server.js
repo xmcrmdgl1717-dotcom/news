@@ -3,10 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
-// 如果你有 translator.js，请解开下面这行，如果没有，注释掉，并将翻译函数替换为假数据
-// const { translateWithPolling, describeError } = require('./translator'); 
 
-// 假翻译函数，防止服务器报错
+// 模拟翻译函数，防止报错 (如果有真实的 translator.js 请替换)
 const translateWithPolling = async (texts, targetLang, sourceLang) => texts.map(t => `[${targetLang}] ${t}`);
 const describeError = (e) => e.message;
 
@@ -24,14 +22,15 @@ const DB_FILES = {
     languages: path.join(DB_DIR, 'languages.json'),
     settings: path.join(DB_DIR, 'settings.json'),
     categories: path.join(DB_DIR, 'categories.json'),
-    tracking: path.join(DB_DIR, 'tracking.json') // 新增追踪配置文件
+    tracking: path.join(DB_DIR, 'tracking.json')
 };
 
+// 初始字典
 const BASE_DICT = {
     siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪",
     loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据",
     catAll: "全部事件", toolTitle: "🛡️ 链上地址安全检测", toolPlaceholder: "输入地址...", toolBtn: "立即检测", 
-    toolLoading: "比对中...", toolReset: "重新检测 ✕", toolDisc: "* 演示UI",
+    toolLoading: "比对中...", toolReset: "重新检测 ✕",
     resSafe: "✅ 安全", resSafeDesc: "未发现风险。", resDanger: "❌ 高危警告", resDangerDesc: "疑似黑客地址！"
 };
 
@@ -40,7 +39,16 @@ Object.keys(DB_FILES).forEach(key => {
     if (!fs.existsSync(DB_FILES[key])) {
         let initialData = [];
         if (key === 'admin') initialData = { password: 'admin888' };
-        if (key === 'settings') initialData = { autoLang: true, deeplKey1: '', deeplKey2: '' };
+        if (key === 'settings') initialData = { 
+            autoLang: true, 
+            deeplKey1: '', 
+            deeplKey2: '',
+            // 初始化检测窗多语言描述
+            toolDesc: { 
+                zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成，不构成任何投资建议或法律依据。",
+                en: "* This is a frontend security demo UI. Results are randomly generated."
+            }
+        };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
         if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }];
         if (key === 'tracking') initialData = { interval: 0, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }] };
@@ -76,10 +84,8 @@ app.get('/api/articles/:id', (req, res) => {
     res.json(readDB('articles').find(a => a.id === req.params.id) || null);
 });
 
-// 获取动态追踪数据 (前台调用)
 app.get('/api/tracking', (req, res) => {
     const config = readDB('tracking');
-    // 模拟动态生成一批数据
     const mockTracks = [
         { id: "1", title: "Lazarus Group (朝鲜黑客)", address: "0x098B716B8Aaf21512996dC57EB0615e2383E2f96", desc: "近期异动：该地址在刚刚将 1,200 ETH 转移至 Tornado Cash 混币器。", tag: "FBI 通缉" },
         { id: "2", title: "某 DeFi 攻击者", address: "0xFb3bD022D5DAcF95EFFcf249C0b79f7eDc08cD22", desc: `该地址根据数据源 [${config.sources[0]?.name || '未知'}] 抓取，正在转移盗取资金。`, tag: "高危" }
@@ -111,29 +117,47 @@ app.get('/api/admin/stats', auth, (req, res) => {
 
 app.post('/api/admin/categories', auth, (req, res) => { const cats = readDB('categories'); cats.push(req.body); writeDB('categories', cats); res.json({ success: true }); });
 app.delete('/api/admin/categories/:id', auth, (req, res) => { writeDB('categories', readDB('categories').filter(c => c.id !== req.params.id)); res.json({ success: true }); });
-app.put('/api/admin/settings', auth, (req, res) => { const s = { ...readDB('settings'), ...req.body }; writeDB('settings', s); res.json({ success: true }); });
 
-// 追踪配置接口
-app.put('/api/admin/tracking/config', auth, (req, res) => {
-    const config = readDB('tracking');
-    config.interval = Math.max(0, Number(req.body.interval) || 0);
-    writeDB('tracking', config);
+// 保存设置 (包含自动翻译描述)
+app.put('/api/admin/settings', auth, async (req, res) => {
+    const oldSettings = readDB('settings');
+    const newSettings = { ...oldSettings, ...req.body };
+    
+    // 如果更新了工具描述，自动调用 DeepL 进行多国语言翻译
+    if (req.body.toolDescZh !== undefined) {
+        const zhDesc = req.body.toolDescZh;
+        try {
+            const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
+            const descObj = { zh: zhDesc };
+            for (let l of langs) {
+                const result = await translateWithPolling([zhDesc], l.code, 'zh');
+                descObj[l.code] = result[0];
+            }
+            newSettings.toolDesc = descObj;
+        } catch (e) {
+            console.error('描述翻译失败:', e);
+            newSettings.toolDesc = { ...oldSettings.toolDesc, zh: zhDesc };
+        }
+    }
+    
+    writeDB('settings', newSettings);
     res.json({ success: true });
+});
+
+app.put('/api/admin/tracking/config', auth, (req, res) => {
+    const config = readDB('tracking'); config.interval = Math.max(0, Number(req.body.interval) || 0);
+    writeDB('tracking', config); res.json({ success: true });
 });
 app.post('/api/admin/tracking/source', auth, (req, res) => {
-    const config = readDB('tracking');
-    config.sources.push({ name: req.body.name, url: req.body.url });
-    writeDB('tracking', config);
-    res.json({ success: true });
+    const config = readDB('tracking'); config.sources.push({ name: req.body.name, url: req.body.url });
+    writeDB('tracking', config); res.json({ success: true });
 });
 app.delete('/api/admin/tracking/source/:index', auth, (req, res) => {
-    const config = readDB('tracking');
-    const idx = Number(req.params.index);
+    const config = readDB('tracking'); const idx = Number(req.params.index);
     if (idx >= 0 && idx < config.sources.length) { config.sources.splice(idx, 1); writeDB('tracking', config); }
     res.json({ success: true });
 });
 
-// 翻译与文章发布
 app.post('/api/admin/languages', auth, (req, res) => { const langs = readDB('languages'); langs.push({ code: req.body.code, name: req.body.name, flag: req.body.flag, active: true, dict: {} }); writeDB('languages', langs); res.json({ success: true }); });
 app.put('/api/admin/languages/:code', auth, (req, res) => {
     const langs = readDB('languages'); const idx = langs.findIndex(l => l.code === req.params.code);
