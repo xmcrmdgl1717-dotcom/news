@@ -24,7 +24,6 @@ const DB_FILES = {
     crawl: path.join(DB_DIR, 'crawl.json')
 };
 
-// 完整字典基准
 const BASE_DICT = {
     siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪",
     loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据",
@@ -37,19 +36,18 @@ const BASE_DICT = {
     safariTitle: "请使用 Safari 浏览器打开", safariDesc: "为了您的安全请使用苹果官方 Safari 打开", copyBtn: "复制当前链接", copied: "已复制"
 };
 
-// 初始化数据文件
+// 初始化
 Object.keys(DB_FILES).forEach(key => {
     if (!fs.existsSync(DB_FILES[key])) {
         let initialData = [];
         if (key === 'admin') initialData = { password: 'admin888' };
-        if (key === 'settings') initialData = { autoLang: true, deeplKey1: '', deeplKey2: '', checkWaitTime: 5, toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成。" } };
+        if (key === 'settings') initialData = { autoLang: true, deeplKey1: '', deeplKey2: '', checkWaitTime: 5, toolDesc: { zh: "* 本模块为前端安全演示UI。" } };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
         if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }];
         if (key === 'tracking') initialData = { interval: 1, maxLogs: 100, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }], logs: [], lastFetchTime: 0 };
         if (key === 'visits') initialData = []; 
         if (key === 'crawl') initialData = { 
             enabled: false, interval: 30, limit: 10, lastCrawlTime: 0,
-            // 提供三个真实免费可用的 API 配置示例
             codeConfig: `{
   "source": "CryptoCompare",
   "url": "https://min-api.cryptocompare.com/data/v2/news/?lang=EN",
@@ -75,7 +73,9 @@ async function translateText(textArray, targetLang, sourceLang = 'ZH') {
     if (!textArray || textArray.length === 0) return [];
     const settings = readDB('settings');
     const keys = [settings.deeplKey1, settings.deeplKey2].filter(k => k && k.trim() !== '');
-    if (keys.length === 0) return textArray; // 如果没有Key，直接返回原文，防止报错
+    
+    // 如果没有配置 Key，直接返回原文本
+    if (keys.length === 0) return textArray; 
     
     const apiKey = keys[Math.floor(Math.random() * keys.length)];
     const isFree = apiKey.endsWith(':fx');
@@ -87,20 +87,25 @@ async function translateText(textArray, targetLang, sourceLang = 'ZH') {
     textArray.forEach(text => params.append('text', text || ''));
     params.append('target_lang', targetCode);
     params.append('source_lang', sourceLang.toUpperCase());
+    
     try {
         const response = await axios.post(url, params, { headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
         return response.data.translations.map(t => t.text);
-    } catch (error) { return textArray; }
+    } catch (error) { 
+        // 翻译失败，抛出错误，由调用方处理
+        throw new Error(error.response?.data?.message || 'DeepL 翻译请求失败'); 
+    }
 }
 
-// ================= 真实采集与追踪逻辑 =================
+// ================= 核心采集与追踪 =================
 
-// 1. 追踪数据自动生成
+// 1. 追踪数据生成
 async function fetchAndTranslateTracking() {
     try {
         let tracking = readDB('tracking');
         const now = Date.now();
         if (now - (tracking.lastFetchTime || 0) < (tracking.interval * 60000) && tracking.interval > 0) return;
+        
         tracking.lastFetchTime = now;
         const sources = tracking.sources || [];
         if (sources.length === 0) return;
@@ -111,20 +116,25 @@ async function fetchAndTranslateTracking() {
         
         const newTitle = titles[Math.floor(Math.random() * titles.length)] + " " + Math.floor(Math.random()*1000);
         
-        const titleTranslations = { zh: newTitle };
-        const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
+        // 初始化标题对象，确保默认有英文(zh即代表默认语种)
+        const titleTranslations = { en: newTitle, zh: newTitle };
+        
+        // 尝试翻译到其他启用的语言
+        const langs = readDB('languages').filter(l => l.active && l.code !== 'zh' && l.code !== 'en');
         for (let l of langs) {
             try {
-                const result = await translateText([newTitle], l.code);
+                const result = await translateText([newTitle], l.code, 'EN');
                 titleTranslations[l.code] = result[0];
-            } catch (e) { titleTranslations[l.code] = null; }
+            } catch (e) { 
+                titleTranslations[l.code] = null; // 翻译失败存 null
+            }
         }
 
         const newLog = { id: uuidv4(), time: new Date().toISOString(), title: titleTranslations, address: addrs[Math.floor(Math.random() * addrs.length)], tag: "高危" };
         tracking.logs.unshift(newLog);
         if (tracking.logs.length > (Number(tracking.maxLogs) || 100)) tracking.logs = tracking.logs.slice(0, tracking.maxLogs);
         writeDB('tracking', tracking);
-    } catch (e) { console.error('追踪失败', e); }
+    } catch (e) { console.error('追踪生成失败', e); }
 }
 
 // 2. 真实文章采集
@@ -133,7 +143,7 @@ async function crawlNews(isManual = false) {
     const now = Date.now();
     
     if (!isManual) {
-        if (!config.enabled || (now - (config.lastCrawlTime || 0) < (config.interval * 60000))) return { success: false, error: '未开启或时间未到' };
+        if (!config.enabled || (now - (config.lastCrawlTime || 0) < (config.interval * 60000))) return { success: false, error: '自动采集未开启或未到时间' };
     }
 
     config.lastCrawlTime = now;
@@ -141,28 +151,43 @@ async function crawlNews(isManual = false) {
 
     try {
         const codeObj = JSON.parse(config.codeConfig);
-        const response = await axios({ url: codeObj.url, method: codeObj.method || 'GET', headers: codeObj.headers || {} });
+        // 发起真实的 HTTP 请求
+        const response = await axios({ 
+            url: codeObj.url, 
+            method: codeObj.method || 'GET', 
+            headers: codeObj.headers || {},
+            timeout: 10000 // 10秒超时
+        });
+        
         let rawList = response.data;
         
+        // 兼容不同的数据结构
         if (rawList.Data && Array.isArray(rawList.Data)) rawList = rawList.Data;
         else if (rawList.news && Array.isArray(rawList.news)) rawList = rawList.news;
         else if (rawList.articles && Array.isArray(rawList.articles)) rawList = rawList.articles;
-        if (!Array.isArray(rawList)) return { success: false, error: '接口返回格式无法解析' };
+        else if (rawList.results && Array.isArray(rawList.results)) rawList = rawList.results;
+
+        if (!Array.isArray(rawList)) {
+            return { success: false, error: '接口返回的数据格式无法解析，请检查 JSON 映射配置' };
+        }
 
         let articles = readDB('articles');
         const existingTitles = new Set(articles.map(a => a.title));
         let count = 0;
+        let failCount = 0;
 
         for (let item of rawList) {
             if (count >= config.limit) break;
 
+            // 获取标题
             const title = item[codeObj.mapping.title];
             if (!title || existingTitles.has(title)) continue; 
 
+            // 提取其他字段
             const summary = item[codeObj.mapping.summary] || '';
             const content = item[codeObj.mapping.content] || `<p>${summary}</p>`;
             const coverUrl = item[codeObj.mapping.coverUrl] || 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80';
-            // 处理嵌套取值
+            
             let author = 'Crypto Bot';
             if (codeObj.mapping.author.includes('.')) {
                 const keys = codeObj.mapping.author.split('.');
@@ -174,35 +199,46 @@ async function crawlNews(isManual = false) {
             const type = codeObj.mapping.type || 'hack'; 
             const groupId = uuidv4();
 
-            // 抓来的默认是英文（EN），先存英文
+            // 先存入默认语种（采集来的通常为英文）
             articles.push({ id: uuidv4(), groupId, lang: 'en', type, title, summary, content, coverUrl, author, time: new Date().toISOString() });
 
-            // 自动翻译适配到其他语言
+            // 尝试自动翻译
             try {
                 const langs = readDB('languages').filter(l => l.active && l.code !== 'en');
                 for (let l of langs) {
-                    const tTitle = await translateText([title], l.code, 'EN');
-                    const tSummary = await translateText([summary], l.code, 'EN');
-                    const tContent = await translateText([content], l.code, 'EN');
-                    articles.push({ id: uuidv4(), groupId, lang: l.code, type, title: tTitle[0], summary: tSummary[0], content: tContent[0], coverUrl, author, time: new Date().toISOString() });
+                    // 翻译到中文等
+                    const sourceLang = 'EN'; // 采集源为英文
+                    const tTitle = await translateText([title], l.code, sourceLang);
+                    const tSummary = await translateText([summary], l.code, sourceLang);
+                    const tContent = await translateText([content], l.code, sourceLang);
+                    
+                    if (tTitle[0] && tSummary[0] && tContent[0]) {
+                        articles.push({ id: uuidv4(), groupId, lang: l.code, type, title: tTitle[0], summary: tSummary[0], content: tContent[0], coverUrl, author, time: new Date().toISOString() });
+                    } else {
+                        failCount++;
+                    }
                 }
             } catch (e) {
-                // 翻译失败，仅保留英文
+                console.log(`文章 ${title} 翻译失败，保留原语种`);
+                failCount++;
             }
             count++;
         }
         
         writeDB('articles', articles);
-        return { success: true, count };
+        return { success: true, count, failCount };
     } catch (e) { 
-        return { success: false, error: e.message };
+        console.error('采集请求失败:', e.message);
+        return { success: false, error: e.message || '网络请求失败，请检查 API 地址' };
     }
 }
 
+// 定时任务（每分钟执行）
 setInterval(() => {
     if (readDB('tracking').interval > 0) fetchAndTranslateTracking();
     if (readDB('crawl').enabled) crawlNews();
 }, 60000);
+
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.text({ type: 'text/plain' })); 
@@ -216,7 +252,6 @@ app.get('/api/settings', (req, res) => res.json(readDB('settings')));
 app.get('/api/languages', (req, res) => res.json(readDB('languages')));
 app.get('/api/categories', (req, res) => res.json(readDB('categories')));
 
-// 前台按语言严格过滤文章
 app.get('/api/articles', (req, res) => {
     const { lang = 'en', type = 'all' } = req.query;
     let articles = readDB('articles').filter(a => a.lang === lang);
@@ -225,7 +260,7 @@ app.get('/api/articles', (req, res) => {
 });
 app.get('/api/articles/:id', (req, res) => { res.json(readDB('articles').find(a => a.id === req.params.id) || null); });
 
-// 前台按语言过滤追踪标题
+// 前台获取追踪数据（过滤掉没有当前语言翻译的）
 app.get('/api/tracking', (req, res) => {
     const tracking = readDB('tracking');
     if (Date.now() - (tracking.lastFetchTime || 0) > (tracking.interval * 60000)) {
@@ -233,11 +268,20 @@ app.get('/api/tracking', (req, res) => {
     }
     const lang = req.query.lang || 'en';
     let logs = readDB('tracking').logs || [];
+    
+    // 核心过滤逻辑：如果没有当前语言的翻译，就不展示
     logs = logs.filter(l => l.title && l.title[lang]);
-    res.json(logs.map(l => ({ id: l.id, address: l.address, tag: l.tag, title: l.title[lang] })).slice(0, 20));
+    
+    // 返回给前端的数据只保留当前语言的标题
+    res.json(logs.map(l => ({ 
+        id: l.id, 
+        address: l.address, 
+        tag: l.tag, 
+        title: l.title[lang] 
+    })).slice(0, 20));
 });
 
-// --- 追踪埋点 ---
+// 追踪埋点
 app.post('/api/track/visit', (req, res) => {
     const { ip, country, os, browser, lang, device } = req.body;
     const visits = readDB('visits');
@@ -246,7 +290,6 @@ app.post('/api/track/visit', (req, res) => {
     writeDB('visits', visits);
     res.json({ success: true, visitId: newVisit.id });
 });
-
 app.post('/api/track/leave', (req, res) => {
     let body = req.body;
     if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) {} }
@@ -262,7 +305,6 @@ app.post('/api/track/leave', (req, res) => {
     }
     res.json({ success: true });
 });
-
 app.post('/api/track/submit', (req, res) => {
     const { visitId, address } = req.body;
     const visits = readDB('visits');
@@ -292,13 +334,15 @@ app.get('/api/admin/data', auth, (req, res) => {
     });
 });
 
-// 手动采集接口
 app.post('/api/admin/crawl/now', auth, async (req, res) => {
-    const result = await crawlNews(true);
-    res.json(result);
+    try {
+        const result = await crawlNews(true);
+        res.json(result);
+    } catch (e) {
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
 
-// 保存采集配置
 app.put('/api/admin/crawl', auth, (req, res) => {
     let crawl = readDB('crawl');
     if (req.body.enabled !== undefined) crawl.enabled = req.body.enabled;
@@ -308,12 +352,10 @@ app.put('/api/admin/crawl', auth, (req, res) => {
     writeDB('crawl', crawl); res.json({ success: true });
 });
 
-// 分类管理
 app.post('/api/admin/categories', auth, (req, res) => { const cats = readDB('categories'); cats.push(req.body); writeDB('categories', cats); res.json({ success: true }); });
 app.put('/api/admin/categories/:id', auth, (req, res) => { const cats = readDB('categories'); const idx = cats.findIndex(c => c.id === req.params.id); if (idx > -1) { cats[idx].name_zh = req.body.name_zh; cats[idx].name_en = req.body.name_en; writeDB('categories', cats); res.json({ success: true }); } });
 app.delete('/api/admin/categories/:id', auth, (req, res) => { writeDB('categories', readDB('categories').filter(c => c.id !== req.params.id)); res.json({ success: true }); });
 
-// 设置管理
 app.put('/api/admin/settings', auth, async (req, res) => {
     const oldSettings = readDB('settings'); const newSettings = { ...oldSettings, ...req.body };
     if (req.body.toolDescZh !== undefined && req.body.targetLangs !== undefined) {
@@ -328,7 +370,6 @@ app.put('/api/admin/settings', auth, async (req, res) => {
     writeDB('settings', newSettings); res.json({ success: true });
 });
 
-// 文章编辑与发布
 app.post('/api/admin/article/translate', auth, async (req, res) => {
     const { title, summary, content, coverUrl, targetLangs, type } = req.body;
     const articles = readDB('articles'); const groupId = uuidv4();
@@ -357,17 +398,14 @@ app.put('/api/admin/article-group/:groupId', auth, async (req, res) => {
 });
 app.delete('/api/admin/article-group/:groupId', auth, (req, res) => { writeDB('articles', readDB('articles').filter(a => a.groupId !== req.params.groupId && a.id !== req.params.groupId)); res.json({ success: true }); });
 
-// 追踪管理
 app.put('/api/admin/tracking/config', auth, (req, res) => { const config = readDB('tracking'); config.interval = Math.max(0, Number(req.body.interval) || 0); config.maxLogs = Math.max(10, Number(req.body.maxLogs) || 100); writeDB('tracking', config); res.json({ success: true }); });
 app.post('/api/admin/tracking/source', auth, (req, res) => { const config = readDB('tracking'); config.sources.push({ name: req.body.name, url: req.body.url }); writeDB('tracking', config); res.json({ success: true }); });
 app.delete('/api/admin/tracking/source/:index', auth, (req, res) => { const config = readDB('tracking'); config.sources.splice(Number(req.params.index), 1); writeDB('tracking', config); res.json({ success: true }); });
 app.post('/api/admin/tracking/logs/delete', auth, (req, res) => { let tracking = readDB('tracking'); tracking.logs = (tracking.logs || []).filter(l => !req.body.ids.includes(l.id)); writeDB('tracking', tracking); res.json({ success: true }); });
 app.post('/api/admin/tracking/mock', auth, (req, res) => { fetchAndTranslateTracking(); res.json({ success: true }); });
 
-// 访客记录删除
 app.post('/api/admin/visits/delete', auth, (req, res) => { writeDB('visits', readDB('visits').filter(v => !req.body.ids.includes(v.id))); res.json({ success: true }); });
 
-// 翻译日志
 app.get('/api/admin/translation-logs', auth, (req, res) => {
     const LOGS_FILE = path.join(DB_DIR, 'translation_logs.json');
     if (!fs.existsSync(LOGS_FILE)) return res.json({ totalCount: 0, totalChars: 0, logs: [] });
