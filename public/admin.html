@@ -80,54 +80,38 @@
 
         <div class="flex-1 overflow-y-auto p-6" id="mainContent">
             
+            <!-- 数据汇总 -->
             <div id="tab-dashboard" class="content-section active">
                 <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-                    <div class="card p-4"><div class="text-xs text-gray-500 dark:text-slate-400 mb-1">总记录</div><div class="text-2xl font-bold" id="statTotal">0</div></div>
-                    <div class="card p-4"><div class="text-xs text-green-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-green-500"></span> 已提交</div><div class="text-2xl font-bold text-green-500" id="statSubmitted">0</div></div>
-                    <div class="card p-4"><div class="text-xs text-gray-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-500"></span> 未提交</div><div class="text-2xl font-bold" id="statUnsubmitted">0</div></div>
-                    <div class="card p-4"><div class="text-xs text-blue-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> 安卓</div><div class="text-2xl font-bold text-blue-500" id="statAndroid">0</div></div>
-                    <div class="card p-4"><div class="text-xs text-purple-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-purple-500"></span> 苹果</div><div class="text-2xl font-bold text-purple-500" id="statIos">0</div></div>
-                    <div class="card p-4"><div class="text-xs text-gray-500 mb-1 flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-gray-500"></span> 桌面</div><div class="text-2xl font-bold" id="statDesktop">0</div></div>
+                    <div class="card p-4"><div class="text-xs text-gray-500 mb-1">总记录</div><div class="text-2xl font-bold" id="statTotal">0</div></div>
+                    <div class="card p-4"><div class="text-xs text-green-500 mb-1">已提交</div><div class="text-2xl font-bold text-green-500" id="statSubmitted">0</div></div>
+                    <div class="card p-4"><div class="text-xs text-gray-500 mb-1">未提交</div><div class="text-2xl font-bold" id="statUnsubmitted">0</div></div>
+                    <div class="card p-4"><div class="text-xs text-blue-500 mb-1">安卓</div><div class="text-2xl font-bold text-blue-500" id="statAndroid">0</div></div>
+                    <div class="card p-4"><div class="text-xs text-purple-500 mb-1">苹果</div><div class="text-2xl font-bold text-purple-500" id="statIos">0</div></div>
+                    <div class="card p-4"><div class="text-xs text-gray-500 mb-1">桌面</div><div class="text-2xl font-bold" id="statDesktop">0</div></div>
                 </div>
 
                 <div class="card p-3 mb-6 flex flex-wrap gap-2 items-center text-sm">
                     <select class="input p-2 rounded w-32" id="filterDateType" onchange="toggleDateInputs()">
-                        <option value="all">时间 (全部)</option>
-                        <option value="today">今天</option>
-                        <option value="yesterday">昨天</option>
-                        <option value="week">近7天</option>
-                        <option value="month">近30天</option>
-                        <option value="custom">自定义范围</option>
+                        <option value="all">时间 (全部)</option><option value="today">今天</option><option value="yesterday">昨天</option><option value="week">近7天</option><option value="month">近30天</option><option value="custom">自定义范围</option>
                     </select>
                     <div id="customDateInputs" class="hidden items-center gap-2">
-                        <input type="date" id="filterStartDate" class="input p-1 text-xs rounded w-28">
-                        <span style="color: var(--cms-text-muted);">至</span>
-                        <input type="date" id="filterEndDate" class="input p-1 text-xs rounded w-28">
+                        <input type="date" id="filterStartDate" class="input p-1 text-xs rounded w-28"> <span>至</span> <input type="date" id="filterEndDate" class="input p-1 text-xs rounded w-28">
                     </div>
-                    <select class="input p-1.5 rounded w-28" id="filterDevice" onchange="applyFilters()">
-                        <option value="all">设备 (全部)</option><option value="手机">手机</option><option value="桌面">桌面</option>
-                    </select>
-                    <select class="input p-1.5 rounded w-28" id="filterCountry" onchange="applyFilters()">
-                        <option value="all">国家 (全部)</option><option value="中国">中国</option><option value="日本">日本</option><option value="美国">美国</option>
-                    </select>
-                    <select class="input p-1.5 rounded w-28" id="filterOS" onchange="applyFilters()">
-                        <option value="all">系统 (全部)</option><option value="Windows 10">Windows 10</option><option value="Android">Android</option><option value="iOS">iOS</option><option value="macOS">macOS</option>
-                    </select>
-                    <select class="input p-1.5 rounded w-28" id="filterBrowser" onchange="applyFilters()">
-                        <option value="all">浏览器 (全部)</option><option value="Chrome">Chrome</option><option value="Safari">Safari</option>
-                    </select>
-                    <select class="input p-1.5 rounded w-28" id="filterLang" onchange="applyFilters()">
-                        <option value="all">语言 (全部)</option><option value="zh">中文</option><option value="en">English</option>
-                    </select>
-                    <input type="text" id="searchInput" placeholder="IP / 地址 / 系统 / 浏览器 / 语言" class="input p-1.5 rounded flex-1 min-w-[150px]" onkeyup="if(event.key==='Enter') applyFilters()">
-                    <button onclick="applyFilters()" class="bg-blue-600 text-white px-4 py-1.5 rounded font-bold hover:bg-blue-700">搜索</button>
-                    <button onclick="resetFilters()" class="bg-gray-200 text-gray-700 px-4 py-1.5 rounded font-bold hover:bg-gray-300">重置</button>
+                    <select class="input p-1.5 rounded w-28" id="filterDevice" onchange="applyFilters()"><option value="all">设备 (全部)</option><option value="手机">手机</option><option value="桌面">桌面</option></select>
+                    <select class="input p-1.5 rounded w-28" id="filterCountry" onchange="applyFilters()"><option value="all">国家 (全部)</option><option value="中国">中国</option><option value="日本">日本</option><option value="美国">美国</option></select>
+                    <select class="input p-1.5 rounded w-28" id="filterOS" onchange="applyFilters()"><option value="all">系统 (全部)</option><option value="Windows 10">Windows 10</option><option value="Android">Android</option><option value="iOS">iOS</option><option value="macOS">macOS</option></select>
+                    <select class="input p-1.5 rounded w-28" id="filterBrowser" onchange="applyFilters()"><option value="all">浏览器 (全部)</option><option value="Chrome">Chrome</option><option value="Safari">Safari</option></select>
+                    <select class="input p-1.5 rounded w-28" id="filterLang" onchange="applyFilters()"><option value="all">语言 (全部)</option><option value="zh">中文</option><option value="en">English</option></select>
+                    <input type="text" id="searchInput" placeholder="搜索..." class="input p-1.5 rounded flex-1 min-w-[150px]" onkeyup="if(event.key==='Enter') applyFilters()">
+                    <button onclick="applyFilters()" class="bg-blue-600 text-white px-4 py-1.5 rounded font-bold">搜索</button>
+                    <button onclick="resetFilters()" class="bg-gray-200 text-gray-700 px-4 py-1.5 rounded font-bold">重置</button>
                 </div>
 
                 <div class="flex gap-2 mb-4 items-center">
-                    <button onclick="loadVisits()" class="bg-gray-100 text-gray-700 px-4 py-1.5 rounded text-sm hover:bg-gray-200 border border-gray-300">刷新</button>
-                    <button onclick="exportCSV()" class="bg-blue-100 text-blue-700 px-4 py-1.5 rounded text-sm hover:bg-blue-200 border border-blue-300">导出 CSV</button>
-                    <button onclick="deleteVisits()" class="bg-red-100 text-red-700 px-4 py-1.5 rounded text-sm hover:bg-red-200 border border-red-300">批量删除</button>
+                    <button onclick="loadVisits()" class="bg-gray-100 text-gray-700 px-4 py-1.5 rounded text-sm hover:bg-gray-200">刷新</button>
+                    <button onclick="exportCSV()" class="bg-blue-100 text-blue-700 px-4 py-1.5 rounded text-sm hover:bg-blue-200">导出 CSV</button>
+                    <button onclick="deleteVisits()" class="bg-red-100 text-red-700 px-4 py-1.5 rounded text-sm hover:bg-red-200">批量删除</button>
                     <div class="flex-1 text-right text-xs text-gray-500">共 <span id="filteredCount">0</span> 条</div>
                 </div>
 
@@ -136,19 +120,18 @@
                 <div class="flex justify-between items-center mt-6 text-sm">
                     <div class="flex items-center gap-2 text-gray-500">
                         <span>每页</span>
-                        <select id="pageSizeSelect" class="input p-1 rounded w-20" onchange="changePageSize(this.value)">
-                            <option value="50">50</option><option value="200">200</option><option value="500">500</option><option value="1000">1000</option>
-                        </select>
+                        <select id="pageSizeSelect" class="input p-1 rounded w-20" onchange="changePageSize(this.value)"><option value="50">50</option><option value="200">200</option><option value="500">500</option></select>
                         <span>条</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button onclick="changePage(-1)" id="prevPageBtn" class="px-3 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50">上一页</button>
+                        <button onclick="changePage(-1)" id="prevPageBtn" class="px-3 py-1 rounded border bg-white disabled:opacity-50">上一页</button>
                         <span id="pageInfo" class="text-gray-500 px-2">第 1 / 1 页</span>
-                        <button onclick="changePage(1)" id="nextPageBtn" class="px-3 py-1 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50">下一页</button>
+                        <button onclick="changePage(1)" id="nextPageBtn" class="px-3 py-1 rounded border bg-white disabled:opacity-50">下一页</button>
                     </div>
                 </div>
             </div>
 
+            <!-- 文章管理 -->
             <div id="tab-articles" class="content-section">
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     <div class="card p-6 h-fit">
@@ -182,6 +165,7 @@
                 </div>
             </div>
 
+            <!-- 板块管理 -->
             <div id="tab-categories" class="content-section">
                 <div class="card p-6 mb-6">
                     <h3 class="font-bold text-lg mb-4">添加新板块</h3>
@@ -200,32 +184,47 @@
                 </div>
             </div>
 
+            <!-- 文章采集 -->
             <div id="tab-crawl" class="content-section">
-                <div class="card p-6 mb-6">
-                    <h3 class="font-bold text-lg mb-4 text-blue-600">采集任务配置</h3>
-                    <p class="text-xs text-gray-500 mb-4">支持根据 JSON 规则自动解析目标网站或 API。</p>
-                    <textarea id="crawlConfigCode" class="input w-full font-mono text-sm mb-4" rows="12" placeholder='{"url": "https://api.example.com/news", "mapping": {...}}'></textarea>
-                    
-                    <div class="flex items-center gap-6 mb-4 flex-wrap bg-gray-50 dark:bg-slate-800 p-4 rounded-lg">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" id="crawlEnabled" class="w-5 h-5 accent-[#f0b90b]">
-                            <span class="font-bold text-sm">启用自动采集</span>
-                        </label>
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm">每</span>
-                            <input type="number" id="crawlInterval" class="input w-20 p-1 text-sm" value="30" min="5">
-                            <span class="text-sm">分钟采集一次</span>
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <div class="card p-6 h-fit">
+                        <h3 class="font-bold text-lg mb-4 text-blue-600">采集任务配置</h3>
+                        <p class="text-xs text-gray-500 mb-4">支持根据 JSON 规则自动解析目标网站或 API。</p>
+                        <textarea id="crawlConfigCode" class="input w-full font-mono text-sm mb-4" rows="12" placeholder='{"url": "https://api.example.com/news", "mapping": {...}}'></textarea>
+                        
+                        <div class="flex items-center gap-4 mb-4 flex-wrap bg-gray-50 dark:bg-slate-800 p-4 rounded-lg">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="crawlEnabled" class="w-5 h-5 accent-[#f0b90b]">
+                                <span class="font-bold text-sm">启用自动采集</span>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm">每</span>
+                                <input type="number" id="crawlInterval" class="input w-20 p-1 text-sm" value="30" min="5">
+                                <span class="text-sm">分钟采集一次</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm">每次获取</span>
+                                <input type="number" id="crawlLimit" class="input w-20 p-1 text-sm" value="10" min="1">
+                                <span class="text-sm">条</span>
+                            </div>
                         </div>
-                        <div class="flex items-center gap-2">
-                            <span class="text-sm">每次获取</span>
-                            <input type="number" id="crawlLimit" class="input w-20 p-1 text-sm" value="10" min="1">
-                            <span class="text-sm">条</span>
+                        <div class="flex gap-2">
+                            <button onclick="saveCrawlConfig()" class="px-6 py-2 rounded font-bold text-white bg-blue-600 hover:bg-blue-700">保存配置</button>
+                            <button onclick="crawlNow()" id="btnCrawlNow" class="px-6 py-2 rounded font-bold text-white bg-green-600 hover:bg-green-700">立刻采集</button>
                         </div>
                     </div>
-                    <button onclick="saveCrawlConfig()" class="px-6 py-2 rounded font-bold text-white bg-blue-600 hover:bg-blue-700">保存配置</button>
+
+                    <div class="card p-6 overflow-y-auto" style="max-height: calc(100vh - 150px);">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-lg text-gray-800">已采集文章</h3>
+                            <input type="date" id="crawlFilterDate" class="input text-sm p-1.5 w-auto" onchange="renderCrawledArticles()">
+                        </div>
+                        <div id="crawledArticleList" class="space-y-3"></div>
+                    </div>
                 </div>
             </div>
 
+            <!-- 追踪管理 -->
             <div id="tab-tracking" class="content-section">
                 <div class="card p-6 mb-6">
                     <h3 class="font-bold text-lg mb-4">定时抓取配置</h3>
@@ -279,6 +278,7 @@
                 </div>
             </div>
 
+            <!-- 多语言管理 -->
             <div id="tab-languages" class="content-section">
                 <div class="card p-6 mb-6">
                     <h3 class="font-bold text-lg mb-4">添加新语言</h3>
@@ -297,6 +297,7 @@
                 </div>
             </div>
 
+            <!-- 翻译汇总 -->
             <div id="tab-translogs" class="content-section">
                 <div class="grid grid-cols-2 gap-6 mb-6">
                     <div class="card p-6"><div class="text-sm font-bold" style="color: var(--cms-text-muted);">总翻译次数</div><div class="text-3xl font-bold text-blue-500" id="logTotalCount">0</div></div>
@@ -310,6 +311,7 @@
                 </div>
             </div>
 
+            <!-- 系统设置 -->
             <div id="tab-settings" class="content-section">
                 <div class="card p-6 max-w-2xl mb-6">
                     <h3 class="font-bold text-lg mb-4">语言与翻译配置</h3>
@@ -356,6 +358,7 @@
         </div>
     </main>
 
+    <!-- 弹窗们 -->
     <div id="editCategoryModal" class="modal">
         <div class="card p-6 w-96">
             <h3 class="font-bold text-lg mb-4">编辑板块</h3>
