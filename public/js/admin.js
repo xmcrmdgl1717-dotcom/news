@@ -133,13 +133,37 @@ async function fetchData() {
         `<label class="flex items-center gap-1 text-sm cursor-pointer"><input type="checkbox" value="${l.code}" class="accent-blue-600 dark:accent-[#f0b90b]" ${l.code === 'zh' ? 'checked disabled' : ''}> ${l.flag} ${l.name}</label>`
     ).join('');
 
+    // 渲染右侧文章列表（带折叠）
     const groups = {};
     allArticles.forEach(a => { const gid = a.groupId || a.id; if (!groups[gid]) groups[gid] = []; groups[gid].push(a); });
-    document.getElementById('articleList').innerHTML = Object.values(groups).map(group => {
+    
+    let articleHtml = '';
+    Object.values(groups).forEach(group => {
         const main = group.find(a => a.lang === 'zh') || group[0];
-        const catName = allCategories.find(c=>c.id === main.type)?.name_zh || '未分类';
-        return `<div class="border p-3 rounded flex justify-between items-center" style="border-color: var(--cms-border); background: rgba(128,128,128,0.05);"><div><span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded mr-2">${catName}</span><b>${main.title}</b></div><button onclick="deleteArticleGroup('${main.groupId}')" class="text-red-500 text-xs">删除</button></div>`;
-    }).join('') || '<div class="text-gray-500 text-center py-4">暂无文章</div>';
+        const otherLangs = group.filter(a => a.lang !== main.lang);
+        
+        articleHtml += `
+        <div class="border p-3 rounded flex flex-col" style="border-color: var(--cms-border); background: rgba(128,128,128,0.05);">
+            <div class="flex justify-between items-center w-full">
+                <div class="flex-1 min-w-0 pr-2">
+                    <span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded mr-2 shrink-0">${allCategories.find(c=>c.id === main.type)?.name_zh || '未分类'}</span>
+                    <b class="text-sm">${main.title}</b>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <button onclick="editArticleGroup('${main.groupId}')" class="text-blue-500 text-xs hover:underline bg-blue-50 px-2 py-1 rounded">编辑</button>
+                    <button onclick="deleteArticleGroup('${main.groupId}')" class="text-red-500 text-xs hover:underline bg-red-50 px-2 py-1 rounded">删除</button>
+                </div>
+            </div>
+            ${otherLangs.length > 0 ? `
+            <details class="mt-2 w-full">
+                <summary class="text-xs text-blue-500 font-bold outline-none"><span class="arrow">▶</span> 包含 ${otherLangs.length} 个其他语言版本</summary>
+                <div class="mt-2 pl-4 space-y-1">
+                    ${otherLangs.map(o => `<div class="text-xs text-gray-500 flex items-center gap-2"><span class="uppercase text-[10px] bg-gray-200 px-1 rounded">${o.lang}</span> ${o.title}</div>`).join('')}
+                </div>
+            </details>` : ''}
+        </div>`;
+    });
+    document.getElementById('articleList').innerHTML = articleHtml || '<div class="text-gray-500 text-center py-4">暂无文章</div>';
 
     document.getElementById('categoryList').innerHTML = allCategories.map(c => 
         `<tr><td class="font-mono">${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`
@@ -161,8 +185,6 @@ async function fetchData() {
     document.getElementById('autoLangSwitch').checked = globalSettings.autoLang || false;
     document.getElementById('deeplKey1').value = globalSettings.deeplKey1 || '';
     document.getElementById('deeplKey2').value = globalSettings.deeplKey2 || '';
-    
-    // 新增：回显倒计时时间
     document.getElementById('checkWaitTime').value = globalSettings.checkWaitTime || 5;
 
     const toolDesc = globalSettings.toolDesc || {};
@@ -193,8 +215,70 @@ function renderSources() {
     `).join('');
 }
 
-// ================= 业务操作 =================
+// ================= 业务操作：文章与板块 =================
+// 编辑文章回填
+function editArticleGroup(groupId) {
+    const group = allArticles.filter(a => a.groupId === groupId);
+    if (!group || group.length === 0) return;
+    
+    // 以中文为主回填，如果没有中文则取第一条
+    const main = group.find(a => a.lang === 'zh') || group[0];
+    
+    document.getElementById('editArticleGroupId').value = groupId;
+    document.getElementById('artType').value = main.type;
+    document.getElementById('artTitle').value = main.title;
+    document.getElementById('artSummary').value = main.summary;
+    document.getElementById('artCoverUrl').value = main.coverUrl || '';
+    quill.root.innerHTML = main.content || '';
+    
+    // 勾选该组已有的语言，且把所有开启的语言都默认勾选以便重新翻译
+    const groupLangs = group.map(a => a.lang);
+    const checkboxes = document.querySelectorAll('#articleLangCheckboxes input');
+    checkboxes.forEach(cb => {
+        if (cb.value === 'zh') {
+            cb.checked = true;
+            cb.disabled = true;
+        } else {
+            // 如果本组有这个语言，必定勾选；如果全站开启了该语言但本组没有，为了同步也勾选
+            if (groupLangs.includes(cb.value)) cb.checked = true;
+            else {
+                // 如果之前没翻译过，也默认勾上，这样保存时会触发翻译
+                cb.checked = true; 
+            }
+        }
+    });
+
+    document.getElementById('articleFormTitle').innerText = '编辑整组文章 (源语言: ' + main.lang + ')';
+    document.getElementById('articleSubmitBtn').innerText = '保存修改并翻译';
+    document.getElementById('articleCancelBtn').classList.remove('hidden');
+    
+    // 滚动到顶部表单
+    document.getElementById('tab-articles').scrollIntoView({ behavior: 'smooth' });
+}
+
+// 重置表单
+function resetArticleForm() {
+    document.getElementById('editArticleGroupId').value = '';
+    document.getElementById('artType').value = allCategories[0]?.id || '';
+    document.getElementById('artTitle').value = '';
+    document.getElementById('artSummary').value = '';
+    document.getElementById('artCoverUrl').value = '';
+    quill.setContents([]);
+    
+    const checkboxes = document.querySelectorAll('#articleLangCheckboxes input');
+    checkboxes.forEach(cb => {
+        cb.checked = (cb.value === 'zh');
+        cb.disabled = (cb.value === 'zh');
+    });
+
+    document.getElementById('articleFormTitle').innerText = '发布新文章';
+    document.getElementById('articleSubmitBtn').innerText = '智能翻译并发布';
+    document.getElementById('articleCancelBtn').classList.add('hidden');
+}
+
+// 提交文章 (新增或更新)
 async function submitArticle() {
+    const groupId = document.getElementById('editArticleGroupId').value;
     const type = document.getElementById('artType').value;
     const title = document.getElementById('artTitle').value;
     const summary = document.getElementById('artSummary').value;
@@ -206,22 +290,28 @@ async function submitArticle() {
     
     const btn = document.getElementById('articleSubmitBtn'); 
     const old = btn.innerText;
-    btn.innerText = '翻译并发布中...'; btn.disabled = true;
+    btn.innerText = '翻译并保存中...'; btn.disabled = true;
     
     try {
-        const res = await fetch('/api/admin/article/translate', { 
-            method: 'POST', 
+        let url = '/api/admin/article/translate';
+        let method = 'POST';
+        
+        // 如果是编辑模式，使用 PUT 接口
+        if (groupId) {
+            url = `/api/admin/article-group/${groupId}`;
+            method = 'PUT';
+        }
+
+        const res = await fetch(url, { 
+            method: method, 
             headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
             body: JSON.stringify({ title, summary, content, targetLangs: checkedLangs, type, coverUrl }) 
         });
         const data = await res.json();
         
         if (data.success) {
-            alert('发布成功！'); 
-            document.getElementById('artTitle').value = ''; 
-            document.getElementById('artSummary').value = ''; 
-            document.getElementById('artCoverUrl').value = ''; 
-            quill.setContents([]); 
+            alert(groupId ? '修改并翻译成功！' : '发布成功！'); 
+            resetArticleForm(); 
             fetchData();
         } else { 
             alert('失败: ' + (data.error || '未知错误')); 
@@ -263,6 +353,7 @@ async function deleteCategory(id) {
     } 
 }
 
+// ... 后续追踪、多语言、系统设置代码与原来保持一致，无需变更 ...
 async function saveTrackingConfig() {
     const interval = parseInt(document.getElementById('trackingInterval').value) || 0;
     await fetch('/api/admin/tracking/config', { 
