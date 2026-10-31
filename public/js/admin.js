@@ -31,17 +31,21 @@ let currentAdminLang = localStorage.getItem('wad_admin_lang') || 'zh';
 
 // ================= 初始化与验证 =================
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. 恢复主题
     const t = localStorage.getItem('wad_theme') || 'dark';
     document.documentElement.classList.remove('dark', 'light'); 
     document.documentElement.classList.add(t);
     
+    // 2. 应用后台语言
     applyAdminLang();
     
+    // 3. 登录状态检查
     if (sessionStorage.getItem('wad_admin_pwd')) {
         document.getElementById('loginOverlay').style.display = 'none'; 
         fetchData();
     }
     
+    // 4. 初始化两个 Quill 编辑器 (发布与编辑弹窗)
     if(document.getElementById('editor-container')) {
         quill = new Quill('#editor-container', { 
             theme: 'snow', 
@@ -55,6 +59,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
+    // 5. 绑定文章封面图上传 (发布)
     document.getElementById('artCoverFile')?.addEventListener('change', async (e) => {
         const file = e.target.files[0]; 
         if (!file) return;
@@ -66,6 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (err) { alert('图片上传失败，请重试'); }
     });
 
+    // 6. 绑定文章封面图上传 (编辑弹窗)
     document.getElementById('editArtCoverFile')?.addEventListener('change', async (e) => {
         const file = e.target.files[0]; 
         if (!file) return;
@@ -136,21 +142,24 @@ async function fetchData() {
     if (res.status === 403) return logout();
     const data = await res.json();
     
-    allArticles = data.articles; 
-    allLangs = data.languages; 
-    allCategories = data.categories;
+    allArticles = data.articles || []; 
+    allLangs = data.languages || []; 
+    allCategories = data.categories || [];
     globalTrackingConfig = data.tracking || { interval: 0, maxLogs: 100, sources: [], logs: [] };
-    globalSettings = data.settings;
+    globalSettings = data.settings || {};
 
+    // 1. 渲染下拉框与勾选框
     const catOptions = allCategories.map(c => `<option value="${c.id}">${currentAdminLang === 'zh' ? c.name_zh : c.name_en}</option>`).join('');
-    document.getElementById('artType').innerHTML = catOptions;
-    document.getElementById('editArtType').innerHTML = catOptions;
+    if(document.getElementById('artType')) document.getElementById('artType').innerHTML = catOptions;
+    if(document.getElementById('editArtType')) document.getElementById('editArtType').innerHTML = catOptions;
     
-    document.getElementById('articleLangCheckboxes').innerHTML = allLangs.filter(l => l.active).map(l => 
-        `<label class="flex items-center gap-1 text-sm cursor-pointer"><input type="checkbox" value="${l.code}" class="accent-blue-600 dark:accent-[#f0b90b]" ${l.code === 'zh' ? 'checked disabled' : ''}> ${l.flag} ${l.name}</label>`
-    ).join('');
+    if(document.getElementById('articleLangCheckboxes')) {
+        document.getElementById('articleLangCheckboxes').innerHTML = allLangs.filter(l => l.active).map(l => 
+            `<label class="flex items-center gap-1 text-sm cursor-pointer"><input type="checkbox" value="${l.code}" class="accent-blue-600 dark:accent-[#f0b90b]" ${l.code === 'zh' ? 'checked disabled' : ''}> ${l.flag} ${l.name}</label>`
+        ).join('');
+    }
 
-    // 渲染文章列表
+    // 2. 渲染右侧文章列表
     const groups = {};
     allArticles.forEach(a => { const gid = a.groupId || a.id; if (!groups[gid]) groups[gid] = []; groups[gid].push(a); });
     let articleHtml = '';
@@ -165,8 +174,8 @@ async function fetchData() {
                     <b class="text-sm">${main.title}</b>
                 </div>
                 <div class="flex gap-2 shrink-0">
-                    <button onclick="editArticleGroup('${main.groupId}')" class="text-blue-500 text-xs hover:underline bg-blue-50 px-2 py-1 rounded">编辑</button>
-                    <button onclick="deleteArticleGroup('${main.groupId}')" class="text-red-500 text-xs hover:underline bg-red-50 px-2 py-1 rounded">删除</button>
+                    <button onclick="editArticleGroup('${main.groupId || main.id}')" class="text-blue-500 text-xs hover:underline bg-blue-50 px-2 py-1 rounded">编辑</button>
+                    <button onclick="deleteArticleGroup('${main.groupId || main.id}')" class="text-red-500 text-xs hover:underline bg-red-50 px-2 py-1 rounded">删除</button>
                 </div>
             </div>
             ${otherLangs.length > 0 ? `
@@ -178,48 +187,58 @@ async function fetchData() {
             </details>` : ''}
         </div>`;
     });
-    document.getElementById('articleList').innerHTML = articleHtml || '<div class="text-gray-500 text-center py-4">暂无文章</div>';
+    if(document.getElementById('articleList')) {
+        document.getElementById('articleList').innerHTML = articleHtml || '<div class="text-gray-500 text-center py-4">暂无文章</div>';
+    }
 
-    // 渲染分类
-    document.getElementById('categoryList').innerHTML = allCategories.map(c => 
-        `<tr><td class="font-mono">${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`
-    ).join('');
+    // 3. 渲染分类管理
+    if(document.getElementById('categoryList')) {
+        document.getElementById('categoryList').innerHTML = allCategories.map(c => 
+            `<tr><td class="font-mono">${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`
+        ).join('');
+    }
     
-    // 渲染语言
-    document.getElementById('languageList').innerHTML = allLangs.map(l => 
-        `<tr>
-            <td>${l.code}</td>
-            <td>${l.flag} ${l.name}</td>
-            <td><span class="px-2 py-1 rounded text-xs ${l.active ? 'bg-green-100 text-green-700' : 'bg-gray-200'}">${l.active ? '启用' : '禁用'}</span></td>
-            <td>
-                <button onclick="openEditLang('${l.code}')" class="text-blue-500 mr-2">编辑字典</button>
-                ${l.code !== 'zh' ? `<button onclick="autoTranslateDict('${l.code}')" class="text-yellow-500">一键机翻</button>` : ''}
-            </td>
-        </tr>`
-    ).join('');
+    // 4. 渲染多语言管理
+    if(document.getElementById('languageList')) {
+        document.getElementById('languageList').innerHTML = allLangs.map(l => 
+            `<tr>
+                <td>${l.code}</td>
+                <td>${l.flag} ${l.name}</td>
+                <td><span class="px-2 py-1 rounded text-xs ${l.active ? 'bg-green-100 text-green-700' : 'bg-gray-200'}">${l.active ? '启用' : '禁用'}</span></td>
+                <td>
+                    <button onclick="openEditLang('${l.code}')" class="text-blue-500 mr-2">编辑字典</button>
+                    ${l.code !== 'zh' ? `<button onclick="autoTranslateDict('${l.code}')" class="text-yellow-500">一键机翻</button>` : ''}
+                </td>
+            </tr>`
+        ).join('');
+    }
 
-    // 渲染设置
-    document.getElementById('autoLangSwitch').checked = globalSettings.autoLang || false;
-    document.getElementById('deeplKey1').value = globalSettings.deeplKey1 || '';
-    document.getElementById('deeplKey2').value = globalSettings.deeplKey2 || '';
-    document.getElementById('checkWaitTime').value = globalSettings.checkWaitTime || 5;
+    // 5. 渲染系统设置回显
+    if(document.getElementById('autoLangSwitch')) document.getElementById('autoLangSwitch').checked = globalSettings.autoLang || false;
+    if(document.getElementById('deeplKey1')) document.getElementById('deeplKey1').value = globalSettings.deeplKey1 || '';
+    if(document.getElementById('deeplKey2')) document.getElementById('deeplKey2').value = globalSettings.deeplKey2 || '';
+    if(document.getElementById('checkWaitTime')) document.getElementById('checkWaitTime').value = globalSettings.checkWaitTime || 5;
 
     const toolDesc = globalSettings.toolDesc || {};
-    document.getElementById('toolDescZh').value = toolDesc.zh || '';
-    document.getElementById('toolDescLangCheckboxes').innerHTML = allLangs.filter(l => l.active && l.code !== 'zh').map(l => {
-        const isTranslated = toolDesc[l.code] && toolDesc[l.code].trim() !== '';
-        return `<label class="flex items-center gap-1 text-sm cursor-pointer">
-            <input type="checkbox" value="${l.code}" class="accent-blue-600 dark:accent-[#f0b90b] tool-desc-lang-cb" ${isTranslated ? 'checked' : ''}>
-            ${l.flag} ${l.name}
-        </label>`;
-    }).join('');
+    if(document.getElementById('toolDescZh')) document.getElementById('toolDescZh').value = toolDesc.zh || '';
+    
+    if(document.getElementById('toolDescLangCheckboxes')) {
+        document.getElementById('toolDescLangCheckboxes').innerHTML = allLangs.filter(l => l.active && l.code !== 'zh').map(l => {
+            const isTranslated = toolDesc[l.code] && toolDesc[l.code].trim() !== '';
+            return `<label class="flex items-center gap-1 text-sm cursor-pointer">
+                <input type="checkbox" value="${l.code}" class="accent-blue-600 dark:accent-[#f0b90b] tool-desc-lang-cb" ${isTranslated ? 'checked' : ''}>
+                ${l.flag} ${l.name}
+            </label>`;
+        }).join('');
+    }
 
-    // 渲染追踪配置
-    document.getElementById('trackingInterval').value = globalTrackingConfig.interval || 0;
-    document.getElementById('trackingMaxLogs').value = globalTrackingConfig.maxLogs || 100;
+    // 6. 渲染追踪配置
+    if(document.getElementById('trackingInterval')) document.getElementById('trackingInterval').value = globalTrackingConfig.interval || 0;
+    if(document.getElementById('trackingMaxLogs')) document.getElementById('trackingMaxLogs').value = globalTrackingConfig.maxLogs || 100;
     renderSources();
     renderTrackingLogs();
 
+    // 7. 渲染数据汇总
     loadStats();
 }
 
@@ -239,13 +258,15 @@ function renderTrackingLogs() {
     const list = document.getElementById('trackingLogsList');
     if (!list) return;
 
-    const filterDate = document.getElementById('trackingFilterDate').value;
+    const filterDate = document.getElementById('trackingFilterDate')?.value || '';
     let logs = globalTrackingConfig.logs || [];
 
+    // 筛选日期
     if (filterDate) {
         logs = logs.filter(l => l.time.startsWith(filterDate));
     }
 
+    // 排序
     logs.sort((a, b) => new Date(b.time) - new Date(a.time));
 
     list.innerHTML = logs.map(l => `
@@ -260,7 +281,7 @@ function renderTrackingLogs() {
         </tr>
     `).join('') || `<tr><td colspan="5" class="text-center py-6 text-gray-500">暂无数据</td></tr>`;
     
-    document.getElementById('selectAllTracking').checked = false;
+    if(document.getElementById('selectAllTracking')) document.getElementById('selectAllTracking').checked = false;
 }
 
 function toggleAllTracking(el) {
@@ -271,11 +292,9 @@ function toggleAllTracking(el) {
 async function deleteTrackingLogs() {
     const cbs = document.querySelectorAll('.tracking-log-cb:checked');
     if (cbs.length === 0) return alert('请先勾选要删除的数据');
-    
     if (!confirm(`确定要删除选中的 ${cbs.length} 条数据吗？`)) return;
     
     const ids = Array.from(cbs).map(cb => cb.value);
-    
     try {
         const res = await fetch('/api/admin/tracking/logs/delete', {
             method: 'POST',
@@ -283,17 +302,13 @@ async function deleteTrackingLogs() {
             body: JSON.stringify({ ids })
         });
         const data = await res.json();
-        if (data.success) {
-            alert('删除成功');
-            fetchData();
-        }
+        if (data.success) { alert('删除成功'); fetchData(); }
     } catch (e) { alert('网络错误'); }
 }
 
 async function saveTrackingConfig() {
     const interval = parseInt(document.getElementById('trackingInterval').value) || 0;
     const maxLogs = parseInt(document.getElementById('trackingMaxLogs').value) || 100;
-    
     await fetch('/api/admin/tracking/config', { 
         method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
         body: JSON.stringify({ interval, maxLogs }) 
@@ -317,14 +332,11 @@ async function addSource() {
     const name = document.getElementById('newSourceName').value.trim();
     const url = document.getElementById('newSourceUrl').value.trim();
     if (!name || !url) return alert('请填写完整');
-    
     await fetch('/api/admin/tracking/source', { 
         method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
         body: JSON.stringify({ name, url }) 
     });
-    document.getElementById('newSourceName').value = ''; 
-    document.getElementById('newSourceUrl').value = ''; 
-    fetchData();
+    document.getElementById('newSourceName').value = ''; document.getElementById('newSourceUrl').value = ''; fetchData();
 }
 
 async function deleteSource(index) {
@@ -333,9 +345,9 @@ async function deleteSource(index) {
     fetchData();
 }
 
-// ================= 业务操作：文章与板块 =================
+// ================= 文章业务操作 =================
 function editArticleGroup(groupId) {
-    const group = allArticles.filter(a => a.groupId === groupId);
+    const group = allArticles.filter(a => a.groupId === groupId || a.id === groupId);
     if (!group || group.length === 0) return;
     
     const main = group.find(a => a.lang === 'zh') || group[0];
@@ -355,7 +367,6 @@ function editArticleGroup(groupId) {
         const badge = isTranslated ? 
             `<span class="text-green-500 text-[10px] bg-green-100 px-1.5 py-0.5 rounded">已翻译</span>` : 
             `<span class="text-red-500 text-[10px] bg-red-100 px-1.5 py-0.5 rounded">未翻译</span>`;
-            
         return `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition">
             <input type="checkbox" value="${l.code}" class="edit-article-lang-cb accent-blue-600 dark:accent-[#f0b90b]" ${checked} ${disabled}>
             ${l.flag} ${l.name} ${badge}
@@ -449,13 +460,14 @@ async function addCategory() {
     await fetch('/api/admin/categories', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ id, name_zh: zh, name_en: en }) });
     document.getElementById('newCatId').value = ''; document.getElementById('newCatZh').value = ''; document.getElementById('newCatEn').value = ''; fetchData();
 }
+
 async function deleteCategory(id) { 
     if(confirm('确定删除该板块？')) { 
         await fetch(`/api/admin/categories/${id}`, { method: 'DELETE', headers: { 'x-admin-pwd': adminPwd } }); fetchData(); 
     } 
 }
 
-// ================= 业务操作：多语言与翻译 =================
+// ================= 多语言与翻译 =================
 async function addLanguage() {
     const code = document.getElementById('newLangCode').value.trim(); 
     const name = document.getElementById('newLangName').value.trim(); 
@@ -494,7 +506,7 @@ async function autoTranslateDict(code) {
     } catch(e) { alert('网络请求失败'); } finally { btn.innerText = old; btn.disabled = false; }
 }
 
-// ================= 业务操作：系统设置与安全 =================
+// ================= 系统设置与安全 =================
 async function saveToolDesc() {
     const toolDescZh = document.getElementById('toolDescZh').value;
     if (!toolDescZh) return alert('请输入中文描述文本');
