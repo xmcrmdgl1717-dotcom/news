@@ -207,14 +207,20 @@
                 <div class="card p-6 max-w-2xl mb-6">
                     <h3 class="font-bold text-lg mb-4" data-i18n="settingsTitle" style="color: var(--cms-text-main);">语言与翻译配置</h3>
                     
-                    <div class="space-y-4 mb-6">
-                        <!-- 替换为多语言动态容器 -->
+                    <!-- 描述文本配置区 -->
+                    <div class="space-y-4 mb-6 border-b pb-4" style="border-color: var(--cms-border);">
                         <div>
-                            <label class="block text-sm font-bold mb-2" style="color: var(--cms-text-muted);">检测窗描述文本 (多语言配置)</label>
-                            <div id="toolDescContainer" class="space-y-3 mb-4">
-                                <!-- JS 会在这里动态生成 -->
+                            <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">检测窗描述文本 (源语言：中文)</label>
+                            <p class="text-xs text-blue-500 mb-2">输入内容后，勾选需要翻译并发布的语言。</p>
+                            <textarea id="toolDescZh" class="input" rows="3" placeholder="例如：* 本模块为前端安全演示UI..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold mb-2" style="color: var(--cms-text-muted);">发布语言：</label>
+                            <div class="flex gap-4 flex-wrap p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);" id="toolDescLangCheckboxes">
+                                <!-- JS 会动态在这里生成语言勾选框 -->
                             </div>
                         </div>
+                        <button onclick="saveToolDesc()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;">翻译并保存描述</button>
                     </div>
 
                     <div class="flex items-center justify-between border-b pb-4 mb-4" style="border-color: var(--cms-border);">
