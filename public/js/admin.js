@@ -3,7 +3,6 @@ let quill = null;
 let allArticles = []; let allLangs = []; let allCategories = [];
 let trackingConfig = { interval: 0, sources: [] };
 
-// 省略字典，保持之前中英切换，仅展示核心
 const adminI18n = {
     zh: { navDashboard: '📊 数据汇总', navArticles: '📝 文章管理', navCategories: '📁 板块管理', navTracking: '📡 追踪管理', navLanguages: '🌐 多语言', navTranslogs: '📈 翻译汇总', navSettings: '⚙️ 系统设置', changePwd: '修改密码', logout: '退出登录', pageDashboard: '数据汇总', pageArticles: '文章管理', pageCategories: '板块管理', pageTracking: '追踪管理', pageLanguages: '多语言管理', pageTranslogs: '翻译汇总', pageSettings: '系统设置', publishArticle: '发布新文章', statTotal: '总文章记录数' },
     en: { navDashboard: '📊 Dashboard', navArticles: '📝 Articles', navCategories: '📁 Categories', navTracking: '📡 Tracking', navLanguages: '🌐 Languages', navTranslogs: '📈 Logs', navSettings: '⚙️ Settings', changePwd: 'Change Pwd', logout: 'Logout', pageDashboard: 'Dashboard', pageArticles: 'Articles', pageCategories: 'Categories', pageTracking: 'Tracking', pageLanguages: 'Languages', pageTranslogs: 'Logs', pageSettings: 'Settings', publishArticle: 'Publish', statTotal: 'Total Articles' }
@@ -52,7 +51,6 @@ function switchTab(tabId, el) {
     if (tabId === 'translogs') loadTranslationLogs();
 }
 
-// 图片上传
 document.addEventListener('DOMContentLoaded', () => {
     const t = localStorage.getItem('wad_theme') || 'dark';
     document.documentElement.classList.remove('dark', 'light'); document.documentElement.classList.add(t);
@@ -81,11 +79,9 @@ async function fetchData() {
     allArticles = data.articles; allLangs = data.languages; allCategories = data.categories;
     trackingConfig = data.tracking || { interval: 0, sources: [] };
 
-    // 文章下拉框
     document.getElementById('artType').innerHTML = allCategories.map(c => `<option value="${c.id}">${currentAdminLang === 'zh' ? c.name_zh : c.name_en}</option>`).join('');
     document.getElementById('articleLangCheckboxes').innerHTML = allLangs.filter(l => l.active).map(l => `<label class="flex items-center gap-1 text-sm cursor-pointer"><input type="checkbox" value="${l.code}" class="accent-blue-600 dark:accent-[#f0b90b]" ${l.code === 'zh' ? 'checked disabled' : ''}> ${l.flag} ${l.name}</label>`).join('');
 
-    // 列表渲染
     const groups = {};
     allArticles.forEach(a => { const gid = a.groupId || a.id; if (!groups[gid]) groups[gid] = []; groups[gid].push(a); });
     document.getElementById('articleList').innerHTML = Object.values(groups).map(group => {
@@ -99,8 +95,10 @@ async function fetchData() {
     document.getElementById('autoLangSwitch').checked = data.settings.autoLang || false;
     document.getElementById('deeplKey1').value = data.settings.deeplKey1 || '';
     document.getElementById('deeplKey2').value = data.settings.deeplKey2 || '';
+    
+    // 回显检测窗描述
+    document.getElementById('toolDescZh').value = data.settings.toolDesc?.zh || '';
 
-    // 追踪配置渲染
     document.getElementById('trackingInterval').value = trackingConfig.interval;
     renderSources();
     loadStats();
@@ -180,10 +178,28 @@ async function autoTranslateDict(code) {
         const data = await res.json(); if (data.success) { alert('成功'); fetchData(); } else alert('失败');
     } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
 }
+
 async function saveSettings() {
-    const deeplKey1 = document.getElementById('deeplKey1').value; const deeplKey2 = document.getElementById('deeplKey2').value; const autoLang = document.getElementById('autoLangSwitch').checked;
-    await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ deeplKey1, deeplKey2, autoLang }) }); alert('已保存');
+    const deeplKey1 = document.getElementById('deeplKey1').value; 
+    const deeplKey2 = document.getElementById('deeplKey2').value; 
+    const autoLang = document.getElementById('autoLangSwitch').checked;
+    const toolDescZh = document.getElementById('toolDescZh').value; // 获取描述
+    
+    const btn = event.target;
+    const old = btn.innerText;
+    btn.innerText = '保存并翻译中...'; btn.disabled = true;
+
+    await fetch('/api/admin/settings', { 
+        method: 'PUT', 
+        headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
+        body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, toolDescZh }) 
+    }); 
+    
+    btn.innerText = old; btn.disabled = false;
+    alert('已保存！如果修改了描述，系统已自动完成多语言翻译。');
+    fetchData();
 }
+
 async function loadStats() {
     const res = await fetch('/api/admin/stats', { headers: { 'x-admin-pwd': adminPwd } }); const stats = await res.json();
     document.getElementById('statTotal').innerText = stats.total;
