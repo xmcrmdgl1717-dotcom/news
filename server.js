@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
-const axios = require('axios'); // 确保已执行 npm install axios
+const axios = require('axios');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,7 +22,6 @@ const DB_FILES = {
     tracking: path.join(DB_DIR, 'tracking.json')
 };
 
-// 绝对纯净的中文基准字典
 const BASE_DICT = {
     siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪",
     loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据",
@@ -31,40 +30,20 @@ const BASE_DICT = {
     resSafe: "✅ 安全", resSafeDesc: "未发现风险。", resDanger: "❌ 高危警告", resDangerDesc: "疑似黑客地址！"
 };
 
-// 初始化数据文件 (包含自动清理脏数据逻辑)
+// 初始化数据文件
 Object.keys(DB_FILES).forEach(key => {
     if (!fs.existsSync(DB_FILES[key])) {
-        // 如果文件不存在，初始化
         let initialData = [];
         if (key === 'admin') initialData = { password: 'admin888' };
         if (key === 'settings') initialData = { 
             autoLang: true, deeplKey1: '', deeplKey2: '',
+            // 初始化一个空的多语言对象
             toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成，不构成任何投资建议或法律依据。" }
         };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
         if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }, { code: 'ja', name: '日本語', flag: '🇯🇵', active: true, dict: {} }];
         if (key === 'tracking') initialData = { interval: 0, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }] };
         fs.writeFileSync(DB_FILES[key], JSON.stringify(initialData, null, 2));
-    } else if (key === 'languages') {
-        // 核心修复：如果文件已存在，检测是否有被污染的假翻译数据
-        try {
-            let existingData = JSON.parse(fs.readFileSync(DB_FILES[key], 'utf8'));
-            let isDirty = false;
-            existingData.forEach(lang => {
-                if (lang.dict && Object.values(lang.dict).some(v => typeof v === 'string' && v.includes('[en]') || v.includes('[ja]') || v.includes('[jp]'))) {
-                    isDirty = true;
-                }
-            });
-            if (isDirty) {
-                console.log('⚠️ 检测到历史污染的假字典数据，已自动重置为纯净状态！');
-                const cleanData = [
-                    { code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT },
-                    { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} },
-                    { code: 'ja', name: '日本語', flag: '🇯🇵', active: true, dict: {} }
-                ];
-                fs.writeFileSync(DB_FILES[key], JSON.stringify(cleanData, null, 2));
-            }
-        } catch (e) { console.error('字典检查失败', e); }
     }
 });
 
@@ -84,7 +63,6 @@ const upload = multer({ storage });
 async function translateText(textArray, targetLang, sourceLang = 'ZH') {
     const settings = readDB('settings');
     const keys = [settings.deeplKey1, settings.deeplKey2].filter(k => k && k.trim() !== '');
-    
     if (keys.length === 0) throw new Error('请先在“系统设置”中配置真实的 DeepL API Key！');
     
     const apiKey = keys[Math.floor(Math.random() * keys.length)];
@@ -102,10 +80,7 @@ async function translateText(textArray, targetLang, sourceLang = 'ZH') {
 
     try {
         const response = await axios.post(url, params, {
-            headers: {
-                'Authorization': `DeepL-Auth-Key ${apiKey}`,
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
+            headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' }
         });
         
         const charCount = textArray.join('').length;
@@ -132,17 +107,8 @@ app.get('/api/articles', (req, res) => {
     if (type !== 'all') articles = articles.filter(a => a.type === type);
     res.json(articles.sort((a, b) => new Date(b.time) - new Date(a.time)));
 });
-
-app.get('/api/articles/:id', (req, res) => {
-    res.json(readDB('articles').find(a => a.id === req.params.id) || null);
-});
-
-app.get('/api/tracking', (req, res) => {
-    res.json([
-        { id: "1", title: "Lazarus Group", address: "0x098B716B8Aaf21512996dC57EB0615e2383E2f96", desc: "近期异动：转移至 Tornado Cash。", tag: "FBI 通缉" },
-        { id: "2", title: "某 DeFi 攻击者", address: "0xFb3bD022D5DAcF95EFFcf249C0b79f7eDc08cD22", desc: `数据源抓取。`, tag: "高危" }
-    ]);
-});
+app.get('/api/articles/:id', (req, res) => { res.json(readDB('articles').find(a => a.id === req.params.id) || null); });
+app.get('/api/tracking', (req, res) => { res.json([{ id: "1", title: "Lazarus Group", address: "0x098B716B8Aaf21512996dC57EB0615e2383E2f96", desc: "近期异动：转移至 Tornado Cash。", tag: "FBI 通缉" }]); });
 
 // ================= 后台 API =================
 const auth = (req, res, next) => {
@@ -157,63 +123,45 @@ app.post('/api/admin/upload', auth, upload.single('image'), (req, res) => res.js
 app.get('/api/admin/data', auth, (req, res) => {
     res.json({ articles: readDB('articles'), languages: readDB('languages'), settings: readDB('settings'), categories: readDB('categories'), tracking: readDB('tracking') });
 });
-
 app.get('/api/admin/stats', auth, (req, res) => {
-    const articles = readDB('articles');
-    const categories = readDB('categories');
+    const articles = readDB('articles'); const categories = readDB('categories');
     const stats = { total: articles.length, byCategory: {} };
     categories.forEach(c => stats.byCategory[c.id] = articles.filter(a => a.type === c.id).length);
     res.json(stats);
 });
-
 app.post('/api/admin/categories', auth, (req, res) => { const cats = readDB('categories'); cats.push(req.body); writeDB('categories', cats); res.json({ success: true }); });
 app.delete('/api/admin/categories/:id', auth, (req, res) => { writeDB('categories', readDB('categories').filter(c => c.id !== req.params.id)); res.json({ success: true }); });
 
-// 保存设置
-app.put('/api/admin/settings', auth, async (req, res) => {
+// 保存设置 (直接保存传上来的 toolDesc 对象)
+app.put('/api/admin/settings', auth, (req, res) => {
     const oldSettings = readDB('settings');
+    // toolDesc 直接从 req.body 合并覆盖
     const newSettings = { ...oldSettings, ...req.body };
-    
-    if (req.body.toolDescZh !== undefined && req.body.toolDescZh !== oldSettings.toolDesc?.zh) {
-        const zhDesc = req.body.toolDescZh;
-        try {
-            const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
-            const descObj = { zh: zhDesc };
-            for (let l of langs) {
-                const result = await translateText([zhDesc], l.code);
-                descObj[l.code] = result[0];
-            }
-            newSettings.toolDesc = descObj;
-        } catch (e) {
-            return res.status(500).json({ error: e.message });
-        }
-    }
     writeDB('settings', newSettings);
     res.json({ success: true });
 });
 
-// 核心：一键翻译字典接口 (强制从 BASE_DICT 翻译)
-app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
-    const { targetLang } = req.body; 
-    const langs = readDB('languages'); 
-    const idx = langs.findIndex(l => l.code === targetLang);
-    
-    if (idx === -1 || targetLang === 'zh') return res.status(400).json({ error: '无效的目标语言' });
-    
+// 【新增】单发文本翻译接口 (用于单独翻译某一段描述)
+app.post('/api/admin/translate-single', auth, async (req, res) => {
+    const { text, targetLang } = req.body;
+    if (!text) return res.status(400).json({ error: '文本不能为空' });
     try {
-        const keys = Object.keys(BASE_DICT); 
-        const texts = keys.map(k => BASE_DICT[k]); // 强制读取最纯净的中文基础字典
-        
-        const translated = await translateText(texts, targetLang);
-        const newDict = {}; 
-        keys.forEach((k, i) => newDict[k] = translated[i]);
-        
-        langs[idx].dict = newDict; 
-        writeDB('languages', langs); 
-        res.json({ success: true });
-    } catch (e) { 
-        res.status(502).json({ error: e.message }); 
+        const result = await translateText([text], targetLang);
+        res.json({ success: true, translatedText: result[0] });
+    } catch (e) {
+        res.status(502).json({ error: e.message });
     }
+});
+
+app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
+    const { targetLang } = req.body; const langs = readDB('languages'); const idx = langs.findIndex(l => l.code === targetLang);
+    if (idx === -1 || targetLang === 'zh') return res.status(400).json({ error: '无效的语言' });
+    try {
+        const keys = Object.keys(BASE_DICT); const texts = keys.map(k => BASE_DICT[k]);
+        const translated = await translateText(texts, targetLang);
+        const newDict = {}; keys.forEach((k, i) => newDict[k] = translated[i]);
+        langs[idx].dict = newDict; writeDB('languages', langs); res.json({ success: true });
+    } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 app.post('/api/admin/languages', auth, (req, res) => { const langs = readDB('languages'); langs.push({ code: req.body.code, name: req.body.name, flag: req.body.flag, active: true, dict: {} }); writeDB('languages', langs); res.json({ success: true }); });
@@ -225,40 +173,21 @@ app.put('/api/admin/languages/:code', auth, (req, res) => {
 app.post('/api/admin/article/translate', auth, async (req, res) => {
     const { title, summary, content, coverUrl, targetLangs, type } = req.body;
     const articles = readDB('articles'); const groupId = uuidv4();
-    
     if (targetLangs.includes('zh')) articles.push({ id: uuidv4(), groupId, lang: 'zh', type, title, summary, content, coverUrl, time: new Date().toISOString() });
     const foreignLangs = targetLangs.filter(lang => lang !== 'zh');
-    
     try {
         for (let lang of foreignLangs) {
             const translated = await translateText([title, summary, content], lang);
             articles.push({ id: uuidv4(), groupId, lang, type, title: translated[0], summary: translated[1], content: translated[2], coverUrl, time: new Date().toISOString() });
         }
-        writeDB('articles', articles); 
-        res.json({ success: true });
-    } catch (e) { 
-        res.status(502).json({ error: e.message }); 
-    }
+        writeDB('articles', articles); res.json({ success: true });
+    } catch (e) { res.status(502).json({ error: e.message }); }
 });
+app.delete('/api/admin/article-group/:groupId', auth, (req, res) => { writeDB('articles', readDB('articles').filter(a => a.groupId !== req.params.groupId && a.id !== req.params.groupId)); res.json({ success: true }); });
 
-app.delete('/api/admin/article-group/:groupId', auth, (req, res) => {
-    writeDB('articles', readDB('articles').filter(a => a.groupId !== req.params.groupId && a.id !== req.params.groupId));
-    res.json({ success: true });
-});
-
-app.put('/api/admin/tracking/config', auth, (req, res) => {
-    const config = readDB('tracking'); config.interval = Math.max(0, Number(req.body.interval) || 0);
-    writeDB('tracking', config); res.json({ success: true });
-});
-app.post('/api/admin/tracking/source', auth, (req, res) => {
-    const config = readDB('tracking'); config.sources.push({ name: req.body.name, url: req.body.url });
-    writeDB('tracking', config); res.json({ success: true });
-});
-app.delete('/api/admin/tracking/source/:index', auth, (req, res) => {
-    const config = readDB('tracking'); const idx = Number(req.params.index);
-    if (idx >= 0 && idx < config.sources.length) { config.sources.splice(idx, 1); writeDB('tracking', config); }
-    res.json({ success: true });
-});
+app.put('/api/admin/tracking/config', auth, (req, res) => { const config = readDB('tracking'); config.interval = Math.max(0, Number(req.body.interval) || 0); writeDB('tracking', config); res.json({ success: true }); });
+app.post('/api/admin/tracking/source', auth, (req, res) => { const config = readDB('tracking'); config.sources.push({ name: req.body.name, url: req.body.url }); writeDB('tracking', config); res.json({ success: true }); });
+app.delete('/api/admin/tracking/source/:index', auth, (req, res) => { const config = readDB('tracking'); const idx = Number(req.params.index); if (idx >= 0 && idx < config.sources.length) { config.sources.splice(idx, 1); writeDB('tracking', config); } res.json({ success: true }); });
 
 app.get('/api/admin/translation-logs', auth, (req, res) => {
     const LOGS_FILE = path.join(DB_DIR, 'translation_logs.json');
