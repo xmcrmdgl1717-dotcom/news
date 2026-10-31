@@ -22,34 +22,15 @@ const DB_FILES = {
     tracking: path.join(DB_DIR, 'tracking.json')
 };
 
-// 【全面补全】基准字典
 const BASE_DICT = {
-    // 站点导航与通用
     siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪",
     loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据",
-    
-    // 首页与分类
-    catAll: "全部事件", 
-    
-    // 链上追踪
-    trackTag: "高危", btnMonitor: "加入监控", btnCopy: "复制地址",
-    alertWatchAdded: "监控已加入", alertAddrCopied: "地址已复制",
-    
-    // 悬浮检测窗
-    toolTitle: "🛡️ 链上地址安全检测", toolPlaceholder: "输入 ETH / BTC 钱包地址...", 
-    toolBtn: "立即检测", toolReset: "重新输入检测 ✕",
-    checkingTitle: "正在检测中...", checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库",
+    catAll: "全部事件", toolTitle: "🛡️ 链上地址安全检测", toolPlaceholder: "输入地址...", toolBtn: "立即检测", 
+    toolLoading: "比对中...", toolReset: "重新检测 ✕",
+    checkingTitle: "正在检测中...",
+    checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库",
     resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", 
-    resDanger: "❌ 高危警告", resDangerDesc: "疑似黑客地址！",
-    alertInvalidAddr: "请输入有效的钱包地址格式！",
-    
-    // Safari 拦截
-    safariTitle: "请使用 Safari 浏览器打开", 
-    safariDesc: "系统检测到您正在使用非苹果官方 Safari 访问，为了您的安全请您使用苹果官方 Safari 打开访问。",
-    copyBtn: "复制当前链接", copied: "已复制",
-    
-    // 文章详情页
-    backBtn: "← 返回上一页", articleLoading: "正在加载文章内容...", articleNotFound: "文章不存在"
+    resDanger: "❌ 高危警告", resDangerDesc: "疑似黑客地址！"
 };
 
 // 初始化数据文件
@@ -71,7 +52,12 @@ Object.keys(DB_FILES).forEach(key => {
             { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }, 
             { code: 'ja', name: '日本語', flag: '🇯🇵', active: true, dict: {} }
         ];
-        if (key === 'tracking') initialData = { interval: 0, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }] };
+        if (key === 'tracking') initialData = { 
+            interval: 1, 
+            maxLogs: 100, 
+            sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }], 
+            logs: [] 
+        };
         fs.writeFileSync(DB_FILES[key], JSON.stringify(initialData, null, 2));
     }
 });
@@ -79,23 +65,47 @@ Object.keys(DB_FILES).forEach(key => {
 const readDB = (key) => JSON.parse(fs.readFileSync(DB_FILES[key]));
 const writeDB = (key, data) => fs.writeFileSync(DB_FILES[key], JSON.stringify(data, null, 2));
 
-// ================= 自动注入初始文章 =================
-async function seedInitialArticles() {
+// ================= 追踪数据自动生成机制 =================
+function mockTrackingData() {
     try {
-        let articles = readDB('articles');
-        if (articles.length === 0) {
-            const now = new Date().toISOString();
-            const seedData = [
-                { id: uuidv4(), groupId: "g1", lang: "zh", type: "hack", title: "币安遭遇巨额黑客攻击！何一表态全额兜底", summary: "10月30日币安联合创始人何一公开发声，明确表示将全额兜底此次被盗资产。", content: "<p>10月30日币安联合创始人何一公开发声，明确表示将全额兜底此次被盗资产。</p>", coverUrl: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80", time: now },
-                { id: uuidv4(), groupId: "g1", lang: "en", type: "hack", title: "Binance Suffers Massive Hack! Yi He Promises Full Compensation", summary: "Binance co-founder Yi He publicly stated on Oct 30 that the exchange will fully cover the stolen assets.", content: "<p>Binance co-founder Yi He publicly stated on Oct 30 that the exchange will fully cover the stolen assets.</p>", coverUrl: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80", time: now },
-                { id: uuidv4(), groupId: "g2", lang: "zh", type: "normal", title: "以太坊基金会发布最新路线图", summary: "以太坊核心开发者会议确定了下一次网络升级的时间节点。", content: "<p>以太坊核心开发者会议确定了下一次网络升级的时间节点。</p>", coverUrl: "https://images.unsplash.com/photo-1622630998477-20aa696ecb05?auto=format&fit=crop&w=400&q=80", time: now },
-                { id: uuidv4(), groupId: "g3", lang: "zh", type: "hack", title: "某知名 DeFi 协议遭遇闪电贷攻击", summary: "据慢雾安全团队监测，某知名DeFi协议遭遇闪电贷攻击。", content: "<p>据慢雾安全团队监测，某知名DeFi协议遭遇闪电贷攻击。</p>", coverUrl: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=400&q=80", time: now }
-            ];
-            writeDB('articles', seedData);
+        let tracking = readDB('tracking');
+        const sources = tracking.sources || [];
+        if (sources.length === 0) return;
+
+        const source = sources[Math.floor(Math.random() * sources.length)];
+        const titles = ["Lazarus Group", "某 DeFi 攻击者", "朝鲜黑客组织", "未知巨鲸地址", "跨链桥攻击者"];
+        const addrs = ["0x098B716B8Aaf21512996dC57EB0615e2383E2f96", "0xFb3bD022D5DAcF95EFFcf249C0b79f7eDc08cD22", "0x1234567890abcdef1234567890abcdef12345678"];
+        const descs = ["将 1,200 ETH 转移至 Tornado Cash", "正在分散资金", "向币安热钱包充值", "利用合约漏洞提取资金", "进行大额 Swap 操作"];
+        
+        const newLog = {
+            id: uuidv4(),
+            time: new Date().toISOString(),
+            title: titles[Math.floor(Math.random() * titles.length)],
+            address: addrs[Math.floor(Math.random() * addrs.length)],
+            desc: `[来源: ${source.name}] ${descs[Math.floor(Math.random() * descs.length)]}`,
+            tag: "高危"
+        };
+
+        tracking.logs = tracking.logs || [];
+        tracking.logs.unshift(newLog); // 插入到头部
+
+        // 限制最大条数，超出则剔除尾部旧数据
+        const max = Number(tracking.maxLogs) || 100;
+        if (tracking.logs.length > max) {
+            tracking.logs = tracking.logs.slice(0, max);
         }
-    } catch (e) { console.error('❌ 注入初始文章失败:', e); }
+        writeDB('tracking', tracking);
+    } catch (e) { console.error('生成追踪数据失败:', e); }
 }
-seedInitialArticles();
+
+// 每分钟检查一次是否需要生成数据 (生产环境可配合 cron 库)
+setInterval(() => {
+    const tracking = readDB('tracking');
+    if (tracking.interval > 0) {
+        mockTrackingData();
+    }
+}, 60000);
+
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static('public'));
@@ -106,40 +116,31 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 
-// ================= 真实 DeepL 翻译引擎 =================
 async function translateText(textArray, targetLang, sourceLang = 'ZH') {
     const settings = readDB('settings');
     const keys = [settings.deeplKey1, settings.deeplKey2].filter(k => k && k.trim() !== '');
     if (keys.length === 0) throw new Error('请先在“系统设置”中配置真实的 DeepL API Key！');
-    
     const apiKey = keys[Math.floor(Math.random() * keys.length)];
     const isFree = apiKey.endsWith(':fx');
     const url = isFree ? 'https://api-free.deepl.com/v2/translate' : 'https://api.deepl.com/v2/translate';
-
     let targetCode = targetLang.split('-')[0].toUpperCase();
     if (targetCode === 'ZH') targetCode = 'ZH-HANS';
     if (targetCode === 'EN') targetCode = 'EN-US';
-
     const params = new URLSearchParams();
     textArray.forEach(text => params.append('text', text));
     params.append('target_lang', targetCode);
     params.append('source_lang', sourceLang.toUpperCase());
-
     try {
         const response = await axios.post(url, params, {
             headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' }
         });
-        
         const charCount = textArray.join('').length;
         const LOGS_FILE = path.join(DB_DIR, 'translation_logs.json');
         let logs = fs.existsSync(LOGS_FILE) ? JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8')) : [];
         logs.push({ time: new Date().toISOString(), targetLang: targetCode, chars: charCount, apiKey: apiKey.substring(0, 5) + '***' });
         fs.writeFileSync(LOGS_FILE, JSON.stringify(logs, null, 2));
-
         return response.data.translations.map(t => t.text);
-    } catch (error) {
-        throw new Error('翻译失败，请检查 API Key 是否正确或额度是否耗尽。');
-    }
+    } catch (error) { throw new Error('翻译失败，请检查 API Key 是否正确或额度是否耗尽。'); }
 }
 
 // ================= 前台 API =================
@@ -153,11 +154,11 @@ app.get('/api/articles', (req, res) => {
     res.json(articles.sort((a, b) => new Date(b.time) - new Date(a.time)));
 });
 app.get('/api/articles/:id', (req, res) => { res.json(readDB('articles').find(a => a.id === req.params.id) || null); });
+
+// 前台只返回最新的 20 条
 app.get('/api/tracking', (req, res) => { 
-    res.json([
-        { id: "1", title: "Lazarus Group", address: "0x098B716B8Aaf21512996dC57EB0615e2383E2f96", desc: "近期异动：转移至 Tornado Cash。", tag: "FBI 通缉" },
-        { id: "2", title: "某 DeFi 攻击者", address: "0xFb3bD022D5DAcF95EFFcf249C0b79f7eDc08cD22", desc: "正在转移盗取资金。", tag: "高危" }
-    ]); 
+    const tracking = readDB('tracking');
+    res.json((tracking.logs || []).slice(0, 20)); 
 });
 
 // ================= 后台 API =================
@@ -272,9 +273,48 @@ app.put('/api/admin/article-group/:groupId', auth, async (req, res) => {
 
 app.delete('/api/admin/article-group/:groupId', auth, (req, res) => { writeDB('articles', readDB('articles').filter(a => a.groupId !== req.params.groupId && a.id !== req.params.groupId)); res.json({ success: true }); });
 
-app.put('/api/admin/tracking/config', auth, (req, res) => { const config = readDB('tracking'); config.interval = Math.max(0, Number(req.body.interval) || 0); writeDB('tracking', config); res.json({ success: true }); });
-app.post('/api/admin/tracking/source', auth, (req, res) => { const config = readDB('tracking'); config.sources.push({ name: req.body.name, url: req.body.url }); writeDB('tracking', config); res.json({ success: true }); });
-app.delete('/api/admin/tracking/source/:index', auth, (req, res) => { const config = readDB('tracking'); const idx = Number(req.params.index); if (idx >= 0 && idx < config.sources.length) { config.sources.splice(idx, 1); writeDB('tracking', config); } res.json({ success: true }); });
+// === 追踪管理相关 API ===
+app.put('/api/admin/tracking/config', auth, (req, res) => { 
+    const config = readDB('tracking'); 
+    if (req.body.interval !== undefined) config.interval = Math.max(0, Number(req.body.interval) || 0); 
+    if (req.body.maxLogs !== undefined) config.maxLogs = Math.max(10, Number(req.body.maxLogs) || 100); 
+    writeDB('tracking', config); 
+    res.json({ success: true }); 
+});
+
+app.post('/api/admin/tracking/source', auth, (req, res) => { 
+    const config = readDB('tracking'); 
+    config.sources.push({ name: req.body.name, url: req.body.url }); 
+    writeDB('tracking', config); 
+    res.json({ success: true }); 
+});
+
+app.delete('/api/admin/tracking/source/:index', auth, (req, res) => { 
+    const config = readDB('tracking'); 
+    const idx = Number(req.params.index); 
+    if (idx >= 0 && idx < config.sources.length) { 
+        config.sources.splice(idx, 1); 
+        writeDB('tracking', config); 
+    } 
+    res.json({ success: true }); 
+});
+
+// 新增：批量删除追踪记录
+app.post('/api/admin/tracking/logs/delete', auth, (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) return res.status(400).json({ error: '参数错误' });
+    
+    let tracking = readDB('tracking');
+    tracking.logs = (tracking.logs || []).filter(l => !ids.includes(l.id));
+    writeDB('tracking', tracking);
+    res.json({ success: true });
+});
+
+// 手动生成一条测试数据（方便用户测试）
+app.post('/api/admin/tracking/mock', auth, (req, res) => {
+    mockTrackingData();
+    res.json({ success: true });
+});
 
 app.get('/api/admin/translation-logs', auth, (req, res) => {
     const LOGS_FILE = path.join(DB_DIR, 'translation_logs.json');
