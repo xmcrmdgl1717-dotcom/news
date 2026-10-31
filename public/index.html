@@ -1,131 +1,464 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="zh-CN" class="dark">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ChainSafe News</title>
-<script src="https://cdn.tailwindcss.com"></script>
-<style>
-    :root { --bg-color: #0b0e14; --card-bg: #161b22; --text-main: #e6edf3; --accent-color: #f0b90b; }
-    body { background: var(--bg-color); color: var(--text-main); font-family: sans-serif; }
-    .news-card { background: var(--card-bg); border: 1px solid #30363d; transition: 0.2s; cursor: pointer; }
-    .news-card:hover { border-color: var(--accent-color); }
-</style>
-</head>
-<body class="p-6">
-    <div class="max-w-4xl mx-auto">
-        <!-- Header -->
-        <header class="flex justify-between items-center pb-4 border-b border-gray-700 mb-6">
-            <div class="flex items-center gap-4">
-                <h1 class="text-2xl font-bold text-[#f0b90b]">ChainSafe</h1>
-                <!-- 语言选择器 (Logo左边/旁边) -->
-                <select id="langSelect" class="bg-[#161b22] border border-gray-600 text-sm rounded px-2 py-1 outline-none text-gray-300">
-                    <option value="zh">🇨🇳 简体中文</option>
-                    <option value="en">🇺🇸 English</option>
-                </select>
-            </div>
-            <nav class="text-sm font-medium text-gray-400 space-x-4">
-                <a href="#" class="text-[#f0b90b]">Home</a>
-                <a href="#">Security</a>
-            </nav>
-        </header>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>链安快讯 - Web3安全资讯</title>
+    <style>
+        /* ================= 基础样式与暗黑模式 ================= */
+        :root {
+            --bg-color: #0b0e14;
+            --card-bg: #161b22;
+            --text-main: #e6edf3;
+            --text-muted: #8b949e;
+            --accent-color: #f0b90b;
+            --danger-color: #ff4d4f;
+            --safe-color: #52c41a;
+            --border-color: #30363d;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 0;
+            line-height: 1.6;
+            padding-bottom: 220px; /* 为悬浮窗留白 */
+        }
+        .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+        
+        /* 顶部导航 */
+        header { border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        header h1 { margin: 0; font-size: 24px; color: var(--accent-color); cursor: pointer; }
+        #langSelect { background-color: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); padding: 4px 8px; border-radius: 4px; outline: none; font-size: 14px; cursor: pointer; }
+        header nav { display: flex; gap: 15px; }
+        header nav a { color: var(--text-muted); text-decoration: none; font-size: 15px; cursor: pointer; transition: color 0.3s; }
+        header nav a:hover, header nav a.active { color: var(--accent-color); font-weight: bold; }
 
-        <!-- 列表 -->
-        <div id="newsList" class="space-y-4"></div>
+        /* 页面切换控制 */
+        .page-view { display: none; animation: fadeIn 0.3s ease-in-out; }
+        .page-view.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 新闻卡片 */
+        .news-card { background-color: var(--card-bg); border-radius: 8px; padding: 15px; margin-bottom: 20px; border: 1px solid var(--border-color); cursor: pointer; transition: 0.2s; }
+        .news-card:hover { border-color: var(--accent-color); }
+        .news-header { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+        .news-title { font-size: 18px; font-weight: bold; margin: 0 0 10px 0; color: var(--text-main); }
+        .news-content { display: flex; gap: 15px; }
+        .news-image { width: 120px; height: 80px; border-radius: 4px; background-color: #21262d; display:flex; align-items:center; justify-content:center; font-size:12px; color:#555; flex-shrink: 0; }
+        .news-desc { font-size: 14px; color: var(--text-muted); margin: 0; flex: 1; }
+
+        /* 筛选 Tabs (用于安全事件页) */
+        .filter-tabs { display: flex; gap: 10px; margin-bottom: 20px; overflow-x: auto; padding-bottom: 5px; }
+        .filter-tab { background-color: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-muted); padding: 6px 15px; border-radius: 20px; font-size: 13px; cursor: pointer; white-space: nowrap; transition: 0.2s; }
+        .filter-tab.active, .filter-tab:hover { background-color: rgba(240, 185, 11, 0.1); border-color: var(--accent-color); color: var(--accent-color); }
+
+        /* 链上追踪面板样式 */
+        .track-card { background-color: var(--card-bg); border-radius: 8px; padding: 15px; margin-bottom: 15px; border: 1px solid var(--border-color); border-left: 4px solid var(--danger-color); }
+        .track-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .track-tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(255, 77, 79, 0.2); color: var(--danger-color); }
+        .track-address { font-family: monospace; color: var(--accent-color); font-size: 14px; word-break: break-all; margin-bottom: 10px; }
+        .track-desc { font-size: 13px; color: var(--text-muted); margin-bottom: 15px; }
+        .track-btn-group { display: flex; gap: 10px; }
+        .track-btn { flex: 1; text-align: center; padding: 8px; background: #21262d; border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-main); font-size: 12px; cursor: pointer; }
+        .track-btn:hover { background: #30363d; }
+
+        /* 加载提示区 */
+        .loading-more { text-align: center; padding: 20px; color: var(--accent-color); font-size: 14px; display: none; }
+        .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(240, 185, 11, 0.3); border-radius: 50%; border-top-color: var(--accent-color); animation: spin 1s ease-in-out infinite; margin-right: 8px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .no-more { text-align: center; padding: 20px; color: var(--text-muted); font-size: 14px; display: none; }
+
+        /* ================= 悬浮安全检测模块 ================= */
+        .floating-tool {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: rgba(13, 17, 23, 0.95); backdrop-filter: blur(10px);
+            border-top: 1px solid var(--accent-color); box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+            z-index: 100; padding: 12px 15px; box-sizing: border-box;
+        }
+        .tool-inner { max-width: 800px; margin: 0 auto; }
+        .tool-default { display: flex; flex-direction: column; gap: 8px; }
+        .tool-title { color: var(--accent-color); font-size: 14px; font-weight: bold; }
+        .input-group { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+        .input-group input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 6px; border: 1px solid var(--border-color); background-color: #0d1117; color: white; outline: none; font-size: 14px; }
+        .input-group input:focus { border-color: var(--accent-color); }
+        .input-group button { width: 100%; box-sizing: border-box; padding: 10px; border: none; border-radius: 6px; background-color: var(--accent-color); color: #000; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .input-group button:disabled { background-color: #555; cursor: not-allowed; }
+        
+        .tool-loading, .tool-result { display: none; flex-direction: column; gap: 10px; padding: 10px 0; font-size: 14px; }
+        .progress-bar { width: 100%; height: 6px; background-color: var(--border-color); border-radius: 3px; overflow: hidden; }
+        .progress-inner { height: 100%; width: 0%; background-color: var(--accent-color); transition: width 0.3s; }
+        .tool-result { padding: 12px; border-radius: 6px; }
+        .res-safe { background-color: rgba(82, 196, 26, 0.1); border: 1px solid var(--safe-color); color: var(--safe-color); }
+        .res-danger { background-color: rgba(255, 77, 79, 0.1); border: 1px solid var(--danger-color); color: var(--danger-color); }
+        .close-btn { cursor: pointer; color: var(--text-muted); font-size: 12px; text-align: right; text-decoration: underline; margin-top: 5px; }
+        .close-btn:hover { color: white; }
+        .disclaimer { font-size: 10px; color: #484f58; margin-top: 10px; text-align: left; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <!-- 顶部导航 -->
+    <header>
+        <div class="header-left">
+            <!-- 语言选择器放在 Logo 左侧 -->
+            <select id="langSelect">
+                <option value="zh">🇨🇳 简体中文</option>
+                <option value="en">🇺🇸 English</option>
+            </select>
+            <h1 onclick="switchPage('home')" data-i18n="siteTitle">链安快讯</h1>
+        </div>
+        <nav id="navMenu">
+            <a class="nav-link active" onclick="switchPage('home')" data-i18n="navHome">首页</a>
+            <a class="nav-link" onclick="switchPage('events')" data-i18n="navEvents">安全事件</a>
+            <a class="nav-link" onclick="switchPage('track')" data-i18n="navTrack">链上追踪</a>
+        </nav>
+    </header>
+
+    <!-- ================= 页面1：首页 ================= -->
+    <div id="page-home" class="page-view active">
+        <div id="home-list"></div>
+        <div class="loading-more" id="home-loading"><span class="spinner"></span><span data-i18n="loading">正在加载更多安全快讯...</span></div>
+        <div class="no-more" id="home-nomore" data-i18n="noMore">—— 已经到底啦 ——</div>
     </div>
 
-    <script>
-        // 语言映射，用于页面文字翻译
-        const i18n = {
-            zh: { home: '首页', sec: '安全事件', loading: '正在加载...' },
-            en: { home: 'Home', sec: 'Security', loading: 'Loading...' }
-        };
+    <!-- ================= 页面2：安全事件 ================= -->
+    <div id="page-events" class="page-view">
+        <div class="filter-tabs">
+            <div class="filter-tab active" onclick="filterEvents(this, 'all')" data-i18n="catAll">全部事件</div>
+            <div class="filter-tab" onclick="filterEvents(this, 'hack')" data-i18n="catHack">黑客攻击</div>
+            <div class="filter-tab" onclick="filterEvents(this, 'scam')" data-i18n="catScam">钓鱼诈骗</div>
+            <div class="filter-tab" onclick="filterEvents(this, 'vuln')" data-i18n="catVuln">漏洞预警</div>
+        </div>
+        <div id="events-list"></div>
+        <div class="loading-more" id="events-loading"><span class="spinner"></span><span data-i18n="loading">正在加载安全事件...</span></div>
+        <div class="no-more" id="events-nomore" data-i18n="noMore">—— 已经到底啦 ——</div>
+    </div>
 
-        // 1. 语言检测逻辑
-        async function determineLanguage() {
-            // a. 手动选择优先级最高
-            const manual = localStorage.getItem('user_lang');
-            if (manual) return manual;
+    <!-- ================= 页面3：链上追踪 ================= -->
+    <div id="page-track" class="page-view">
+        <div class="track-card">
+            <div class="track-header">
+                <span style="font-weight:bold; color:white;" data-i18n="trackLazarus">Lazarus Group (朝鲜黑客)</span>
+                <span class="track-tag" data-i18n="tagFBI">FBI 通缉</span>
+            </div>
+            <div class="track-address">0x098B716B8Aaf21512996dC57EB0615e2383E2f96</div>
+            <div class="track-desc" data-i18n="trackLazarusDesc">近期异动：该地址在 2 小时前将 1,200 ETH 转移至 Tornado Cash 混币器。</div>
+            <div class="track-btn-group">
+                <div class="track-btn" onclick="alert('Added to watchlist')" data-i18n="btnMonitor">加入监控</div>
+                <div class="track-btn" onclick="alert('Address copied')" data-i18n="btnCopy">复制地址</div>
+            </div>
+        </div>
+    </div>
+</div>
 
-            // b. 检查是否开启了自动 IP 识别
-            try {
-                const res = await fetch('/api/settings');
-                const settings = await res.json();
-                if (settings.autoLang) {
-                    // 请求 IP 地理信息 (使用公共免费API)
-                    const ipRes = await fetch('https://ipapi.co/json/');
-                    const ipData = await ipRes.json();
-                    if (ipData.country_code === 'CN') return 'zh';
-                    if (ipData.country_code === 'TW' || ipData.country_code === 'HK') return 'zh';
-                }
-            } catch (e) { console.log('IP检测失败，使用设备语言'); }
+<!-- 悬浮底部的安全检测模块 -->
+<div class="floating-tool">
+    <div class="tool-inner">
+        <div class="tool-default" id="toolDefault">
+            <div class="tool-title" data-i18n="toolTitle">🛡️ 链上地址安全检测</div>
+            <div class="input-group">
+                <input type="text" id="walletAddress" placeholder="输入 ETH / BTC / TRC20 钱包地址..." data-i18n-placeholder="toolPlaceholder">
+                <button id="checkBtn" onclick="startCheck()" data-i18n="toolBtn">立即检测</button>
+            </div>
+        </div>
+        <div class="tool-loading" id="toolLoading">
+            <span style="color: var(--accent-color);" data-i18n="toolLoading">正在比对链上黑名单数据库...</span>
+            <div class="progress-bar"><div class="progress-inner" id="progressInner"></div></div>
+        </div>
+        <div class="tool-result" id="toolResult">
+            <div id="resultText" style="line-height: 1.5;"></div>
+            <div class="close-btn" onclick="resetTool()" data-i18n="toolReset">重新输入检测 ✕</div>
+        </div>
+        <p class="disclaimer" data-i18n="toolDisc">* 本模块为前端安全演示UI，检测结果由随机算法生成，不构成任何投资建议或法律依据。</p>
+    </div>
+</div>
 
-            // c. 设备/浏览器语言
-            if (navigator.language.startsWith('zh')) return 'zh';
-
-            // d. 默认英语
-            return 'en';
+<script>
+    // ================= 国际化字典 =================
+    const i18n = {
+        zh: {
+            siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪",
+            loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据",
+            catAll: "全部事件", catHack: "黑客攻击", catScam: "钓鱼诈骗", catVuln: "漏洞预警",
+            tagFBI: "FBI 通缉", trackLazarus: "Lazarus Group (朝鲜黑客)",
+            trackLazarusDesc: "近期异动：该地址在 2 小时前将 1,200 ETH 转移至 Tornado Cash 混币器。",
+            btnMonitor: "加入监控", btnCopy: "复制地址",
+            toolTitle: "🛡️ 链上地址安全检测", toolPlaceholder: "输入 ETH / BTC / TRC20 钱包地址...", 
+            toolBtn: "立即检测", toolLoading: "正在比对链上黑名单数据库...", toolReset: "重新输入检测 ✕",
+            toolDisc: "* 本模块为前端安全演示UI，检测结果由随机算法生成，不构成任何投资建议或法律依据。",
+            resSafe: "✅ 安全", resSafeDesc: "该地址暂未发现与黑客、暗网、混币器存在交互记录。",
+            resDanger: "❌ 高危警告", resDangerDesc: "该地址疑似黑客关联地址，请立即停止与其交互！"
+        },
+        en: {
+            siteTitle: "ChainSafe News", navHome: "Home", navEvents: "Security", navTrack: "Tracking",
+            loading: "Loading...", noMore: "—— No more data ——", noData: "No data available",
+            catAll: "All Events", catHack: "Hacks", catScam: "Scams", catVuln: "Vulnerabilities",
+            tagFBI: "FBI Wanted", trackLazarus: "Lazarus Group",
+            trackLazarusDesc: "Recent Activity: The address moved 1,200 ETH to Tornado Cash 2 hours ago.",
+            btnMonitor: "Monitor", btnCopy: "Copy Address",
+            toolTitle: "🛡️ On-chain Address Security Check", toolPlaceholder: "Enter ETH / BTC / TRC20 address...", 
+            toolBtn: "Check Now", toolLoading: "Comparing with on-chain blacklists...", toolReset: "Check Again ✕",
+            toolDisc: "* This is a frontend demo. Results are randomly generated and do not constitute investment advice.",
+            resSafe: "✅ Safe", resSafeDesc: "No interactions with known hackers, darknets, or mixers found.",
+            resDanger: "❌ High Risk", resDangerDesc: "Address is suspected to be linked to hackers. Stop interaction immediately!"
         }
+    };
 
-        let currentLang = 'en';
+    let currentLang = 'en';
+    let currentPage = 1;
+    const pageSize = 5;
+    let homeAllLoaded = false;
+    let homeLoading = false;
+    let eventsCurrentPage = 1;
+    let eventsAllLoaded = false;
+    let eventsLoading = false;
+    let currentFilter = 'all';
 
-        async function init() {
-            currentLang = await determineLanguage();
-            
-            // 更新选择器 UI
-            const select = document.getElementById('langSelect');
-            if (select.querySelector(`option[value="${currentLang}"]`)) {
-                select.value = currentLang;
-            } else {
-                // 如果当前语言不在列表中，默认选英语
-                select.value = 'en';
-                currentLang = 'en';
+    // ================= 语言检测与切换 =================
+    async function determineLanguage() {
+        const manual = localStorage.getItem('user_lang');
+        if (manual) return manual;
+
+        try {
+            const res = await fetch('/api/settings');
+            const settings = await res.json();
+            if (settings.autoLang) {
+                // 使用 ipapi 检测国家
+                const ipRes = await fetch('https://ipapi.co/json/');
+                const ipData = await ipRes.json();
+                if (['CN', 'TW', 'HK'].includes(ipData.country_code)) return 'zh';
             }
+        } catch (e) { console.log('IP检测失败'); }
 
-            // 监听手动切换
-            select.addEventListener('change', (e) => {
-                currentLang = e.target.value;
-                localStorage.setItem('user_lang', currentLang);
-                loadArticles();
-                updateText();
-            });
+        if (navigator.language.startsWith('zh')) return 'zh';
+        return 'en';
+    }
 
-            loadArticles();
+    function updateText() {
+        const dict = i18n[currentLang];
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (dict[key]) el.innerText = dict[key];
+        });
+        document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+            const key = el.getAttribute('data-i18n-placeholder');
+            if (dict[key]) el.placeholder = dict[key];
+        });
+    }
+
+    async function initLang() {
+        currentLang = await determineLanguage();
+        const select = document.getElementById('langSelect');
+        if(select.querySelector(`option[value="${currentLang}"]`)) select.value = currentLang;
+        
+        select.addEventListener('change', (e) => {
+            currentLang = e.target.value;
+            localStorage.setItem('user_lang', currentLang);
             updateText();
+            // 切换语言后，重置并重新加载当前页数据
+            resetAndReload();
+        });
+        updateText();
+        resetAndReload();
+    }
+
+    // ================= 页面路由与数据加载 =================
+    function switchPage(pageId) {
+        document.querySelectorAll('.page-view').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+        
+        document.getElementById('page-' + pageId).classList.add('active');
+        const map = { 'home': 0, 'events': 1, 'track': 2 };
+        document.querySelectorAll('.nav-link')[map[pageId]].classList.add('active');
+
+        if (pageId === 'events' && document.getElementById('events-list').innerHTML === '') {
+            loadEventsData();
         }
+        window.scrollTo(0, 0);
+    }
 
-        function updateText() {
-            const dict = i18n[currentLang] || i18n['en'];
-            document.querySelector('nav a:nth-child(1)').innerText = dict.home;
-            document.querySelector('nav a:nth-child(2)').innerText = dict.sec;
+    function renderNewsCards(dataList, targetEl) {
+        if (dataList.length === 0) {
+            targetEl.innerHTML = `<div style="text-align:center; color:#8b949e; padding:20px;">${i18n[currentLang].noData}</div>`;
+            return;
         }
-
-        async function loadArticles() {
-            const list = document.getElementById('newsList');
-            list.innerHTML = `<div class="text-center py-10 text-gray-500">${i18n[currentLang].loading}</div>`;
-            
-            try {
-                const res = await fetch(`/api/articles?lang=${currentLang}`);
-                const articles = await res.json();
-                
-                if (articles.length === 0) {
-                    list.innerHTML = `<div class="text-center py-10 text-gray-500">No articles found.</div>`;
-                    return;
-                }
-
-                list.innerHTML = articles.map(a => `
-                    <div class="news-card p-4 rounded-lg" onclick="window.location.href='/article.html?id=${a.id}'">
-                        <div class="text-xs text-gray-500 mb-2">${new Date(a.time).toLocaleString()}</div>
-                        <h2 class="text-lg font-bold mb-2">${a.title}</h2>
-                        <p class="text-sm text-gray-400">${a.summary || ''}</p>
+        let html = '';
+        dataList.forEach(item => {
+            html += `
+                <div class="news-card" onclick="window.location.href='/article.html?id=${item.id}&lang=${currentLang}'">
+                    <div class="news-header"><span>${item.author}</span><span>${item.time || new Date().toLocaleDateString()}</span></div>
+                    <h2 class="news-title">${item.title}</h2>
+                    <div class="news-content">
+                        <div class="news-image">${item.imageText || '[Image]'}</div>
+                        <p class="news-desc">${item.desc || item.summary || ''}</p>
                     </div>
-                `).join('');
-            } catch (e) {
-                list.innerHTML = `<div class="text-center py-10 text-red-500">Load failed.</div>`;
+                </div>
+            `;
+        });
+        targetEl.insertAdjacentHTML('beforeend', html);
+    }
+
+    // 重置页面状态（切换语言时调用）
+    function resetAndReload() {
+        currentPage = 1; homeAllLoaded = false; homeLoading = false;
+        eventsCurrentPage = 1; eventsAllLoaded = false; eventsLoading = false;
+        document.getElementById('home-list').innerHTML = '';
+        document.getElementById('events-list').innerHTML = '';
+        document.getElementById('home-nomore').style.display = 'none';
+        document.getElementById('events-nomore').style.display = 'none';
+        
+        loadHomeData();
+        if (document.getElementById('page-events').classList.contains('active')) {
+            loadEventsData();
+        }
+    }
+
+    // --- 首页加载 ---
+    async function loadHomeData() {
+        if (homeLoading || homeAllLoaded) return;
+        homeLoading = true;
+        document.getElementById('home-loading').style.display = 'block';
+
+        try {
+            const res = await fetch(`/api/articles?lang=${currentLang}&type=all`);
+            let data = await res.json();
+            
+            // 模拟前端分页 (因为 /api/articles 目前返回全部，我们切片)
+            const start = (currentPage - 1) * pageSize;
+            const slicedData = data.slice(start, start + pageSize);
+            
+            if (slicedData.length > 0) {
+                renderNewsCards(slicedData, document.getElementById('home-list'));
+                currentPage++;
+                if (start + pageSize >= data.length) {
+                    homeAllLoaded = true;
+                    document.getElementById('home-nomore').style.display = 'block';
+                }
+            } else {
+                homeAllLoaded = true;
+                document.getElementById('home-nomore').style.display = 'block';
             }
+        } catch (e) { console.error(e); }
+        
+        document.getElementById('home-loading').style.display = 'none';
+        homeLoading = false;
+    }
+
+    // --- 安全事件加载 ---
+    function filterEvents(el, type) {
+        document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        currentFilter = type;
+        eventsCurrentPage = 1;
+        eventsAllLoaded = false;
+        document.getElementById('events-list').innerHTML = '';
+        document.getElementById('events-nomore').style.display = 'none';
+        loadEventsData();
+    }
+
+    async function loadEventsData() {
+        if (eventsLoading || eventsAllLoaded) return;
+        eventsLoading = true;
+        document.getElementById('events-loading').style.display = 'block';
+
+        try {
+            const res = await fetch(`/api/articles?lang=${currentLang}&type=${currentFilter}`);
+            let data = await res.json();
+
+            const start = (eventsCurrentPage - 1) * pageSize;
+            const slicedData = data.slice(start, start + pageSize);
+
+            if (slicedData.length > 0) {
+                renderNewsCards(slicedData, document.getElementById('events-list'));
+                eventsCurrentPage++;
+                if (start + pageSize >= data.length) {
+                    eventsAllLoaded = true;
+                    document.getElementById('events-nomore').style.display = 'block';
+                }
+            } else {
+                eventsAllLoaded = true;
+                document.getElementById('events-nomore').style.display = 'block';
+            }
+        } catch (e) { console.error(e); }
+
+        document.getElementById('events-loading').style.display = 'none';
+        eventsLoading = false;
+    }
+
+    // 滚动监听
+    window.addEventListener('scroll', () => {
+        const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+        const clientHeight = document.documentElement.clientHeight || document.body.clientHeight;
+        const scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+        
+        if (scrollTop + clientHeight >= scrollHeight - 200) {
+            if (document.getElementById('page-home').classList.contains('active')) loadHomeData();
+            else if (document.getElementById('page-events').classList.contains('active')) loadEventsData();
+        }
+    });
+
+    // ================= 悬浮检测窗逻辑 =================
+    const toolDefault = document.getElementById('toolDefault');
+    const toolLoading = document.getElementById('toolLoading');
+    const toolResult = document.getElementById('toolResult');
+    const progressInner = document.getElementById('progressInner');
+    const resultText = document.getElementById('resultText');
+
+    function startCheck() {
+        const input = document.getElementById('walletAddress').value.trim();
+        if (input.length < 10) {
+            alert(currentLang === 'zh' ? "请输入有效的钱包地址格式！" : "Please enter a valid address format!");
+            return;
         }
 
-        init();
-    </script>
+        toolDefault.style.display = 'none';
+        toolResult.style.display = 'none';
+        toolLoading.style.display = 'flex';
+        progressInner.style.width = '0%';
+
+        let progress = 0;
+        const interval = setInterval(() => {
+            progress += Math.random() * 20;
+            if (progress > 100) progress = 100;
+            progressInner.style.width = progress + '%';
+            if (progress === 100) {
+                clearInterval(interval);
+                setTimeout(showResult, 400); 
+            }
+        }, 200);
+    }
+
+    function showResult() {
+        toolLoading.style.display = 'none';
+        toolResult.style.display = 'flex';
+
+        const isSafe = Math.random() > 0.5;
+        toolResult.className = 'tool-result';
+        const dict = i18n[currentLang];
+        
+        if (isSafe) {
+            toolResult.classList.add('res-safe');
+            resultText.innerHTML = `<strong>${dict.resSafe}</strong><br><span style="color:var(--text-muted); font-size:13px;">${dict.resSafeDesc}</span>`;
+        } else {
+            toolResult.classList.add('res-danger');
+            resultText.innerHTML = `<strong>${dict.resDanger}</strong><br><span style="color:var(--text-muted); font-size:13px;">${dict.resDangerDesc}</span>`;
+        }
+    }
+
+    function resetTool() {
+        toolResult.style.display = 'none';
+        toolLoading.style.display = 'none';
+        toolDefault.style.display = 'flex'; 
+        document.getElementById('walletAddress').value = '';
+    }
+
+    // 启动
+    document.addEventListener('DOMContentLoaded', initLang);
+</script>
+
 </body>
 </html>
