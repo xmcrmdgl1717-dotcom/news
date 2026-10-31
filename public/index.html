@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>链安快讯 - Web3安全资讯</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 onclick="window.location.reload()">链安快讯</h1>
+            <nav id="navMenu">
+                <a class="nav-link active" data-page="home">首页</a>
+                <a class="nav-link" data-page="events">安全事件</a>
+                <a class="nav-link" data-page="track">链上追踪</a>
+            </nav>
+        </header>
+
+        <div id="page-home" class="page-view active"><div id="home-list"></div></div>
+        <div id="page-events" class="page-view">
+            <div class="filter-tabs">
+                <div class="filter-tab active" data-type="all">全部事件</div>
+                <div class="filter-tab" data-type="hack">黑客攻击</div>
+                <div class="filter-tab" data-type="scam">钓鱼诈骗</div>
+            </div>
+            <div id="events-list"></div>
+        </div>
+        <div id="page-track" class="page-view">
+            <div class="track-card">
+                <div class="track-header"><b>Lazarus Group 黑客</b><span class="track-tag">监控中</span></div>
+                <div class="track-address">0x098B716B8Aaf...</div>
+                <div class="track-desc">异动：将 1,200 ETH 转移至 Tornado Cash。</div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="/js/main.js"></script>
+</body>
+</html>
