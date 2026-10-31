@@ -3,414 +3,136 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>链安快讯 - CMS 后台</title>
-<script>
-    (function () {
-        var t = localStorage.getItem('wad_theme') || 'dark';
-        document.documentElement.classList.add(t);
-    })();
-</script>
+<title>ChainSafe CMS</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>tailwind.config = { darkMode: 'class' };</script>
-<!-- 引入 Quill 富文本编辑器 -->
 <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
 <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
 <style>
-    /* 基础样式补充 */
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    .card { @apply bg-white dark:bg-[#161b22] border border-gray-200 dark:border-slate-800 rounded-xl shadow-sm; }
-    .input { @apply border border-gray-300 dark:border-slate-700 bg-white dark:bg-[#0d1117] text-gray-900 dark:text-white focus:ring-2 focus:ring-[#f0b90b] outline-none transition; }
-    .menu-item.active { @apply bg-blue-50 dark:bg-slate-800 text-[#f0b90b] border-r-4 border-[#f0b90b]; }
+    body { font-family: sans-serif; }
+    .card { @apply bg-[#161b22] border border-slate-700 rounded-xl shadow-sm text-gray-200; }
+    .input { @apply bg-[#0d1117] border border-slate-700 text-white focus:ring-2 focus:ring-[#f0b90b] outline-none transition rounded p-2; }
+    .menu-item.active { @apply bg-slate-800 text-[#f0b90b] border-r-4 border-[#f0b90b]; }
     .content-section { display: none; }
-    .content-section.active { display: block; animation: fadeIn 0.3s ease-in-out; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-    /* 修正 Quill 在暗黑模式下的样式 */
-    .ql-toolbar { @apply bg-gray-100 dark:bg-slate-800 border-gray-300 dark:border-slate-700 rounded-t-lg; }
-    .ql-container { @apply bg-white text-black border-gray-300 dark:border-slate-700 rounded-b-lg text-base; }
-    .ql-editor { min-height: 250px; }
-    /* 隐藏滚动条但保留功能 */
-    ::-webkit-scrollbar { width: 6px; height: 6px; }
-    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    .content-section.active { display: block; }
+    .ql-toolbar { @apply bg-gray-800 border-slate-700; }
+    .ql-container { @apply bg-white text-black border-slate-700; min-height: 300px; }
 </style>
 </head>
-<body class="h-screen flex overflow-hidden bg-gray-50 dark:bg-[#0b0e14] text-gray-900 dark:text-gray-100 transition-colors duration-300">
+<body class="h-screen flex overflow-hidden bg-[#0b0e14] text-gray-100">
 
-    <!-- 登录遮罩 -->
-    <div id="loginOverlay" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm">
+    <div id="loginOverlay" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center">
         <div class="card p-8 w-96 text-center">
-            <h2 class="text-2xl font-bold mb-6 text-[#f0b90b]">链安快讯 后台登录</h2>
-            <input type="password" id="adminPwd" placeholder="请输入后台密码 (默认admin)" class="input w-full p-3 rounded-lg mb-4">
-            <button onclick="doLogin()" class="w-full bg-[#f0b90b] text-black py-3 rounded-lg font-bold hover:opacity-90">登录</button>
+            <h2 class="text-2xl font-bold mb-6 text-[#f0b90b]">后台登录</h2>
+            <input type="password" id="adminPwd" placeholder="请输入密码" class="input w-full mb-4">
+            <button onclick="doLogin()" class="w-full bg-[#f0b90b] text-black py-3 rounded-lg font-bold">登录</button>
         </div>
     </div>
 
-    <!-- 侧边栏 -->
-    <aside class="w-64 border-r flex flex-col hidden md:flex bg-white dark:bg-[#0f172a] border-gray-200 dark:border-slate-800 transition-colors z-40">
-        <div class="h-16 flex items-center justify-between px-6 font-bold text-xl text-[#f0b90b] border-b border-gray-200 dark:border-slate-800">
-            <span>链安快讯 CMS</span>
-            <button onclick="toggleTheme()" class="text-gray-500 hover:text-black dark:hover:text-white" title="切换主题">
-                <svg class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                <svg class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-            </button>
-        </div>
-        <nav class="flex-1 overflow-y-auto py-4 space-y-1">
-            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800 active" onclick="switchTab('dashboard', this)">📊 数据汇总</div>
-            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800" onclick="switchTab('users', this)">👥 用户管理</div>
-            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800" onclick="switchTab('articles', this)">📝 文章管理</div>
-            <!-- 后续扩展保留的模块 -->
-            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800" onclick="switchTab('partners', this)">🤝 合作墙管理</div>
-            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800" onclick="switchTab('languages', this)">🌐 多语言管理</div>
-            <div class="menu-item px-6 py-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-slate-800" onclick="switchTab('settings', this)">⚙️ 系统设置</div>
+    <aside class="w-64 border-r border-slate-700 flex flex-col bg-[#0f172a]">
+        <div class="h-16 flex items-center px-6 font-bold text-xl text-[#f0b90b] border-b border-slate-700">ChainSafe CMS</div>
+        <nav class="flex-1 py-4">
+            <div class="menu-item px-6 py-3 cursor-pointer active" onclick="switchTab('articles', this)">📝 文章管理</div>
+            <div class="menu-item px-6 py-3 cursor-pointer" onclick="switchTab('languages', this)">🌐 多语言管理</div>
+            <div class="menu-item px-6 py-3 cursor-pointer" onclick="switchTab('translogs', this)">📈 翻译汇总</div>
+            <div class="menu-item px-6 py-3 cursor-pointer" onclick="switchTab('settings', this)">⚙️ 系统设置</div>
         </nav>
-        <div class="p-4 border-t border-gray-200 dark:border-slate-800 space-y-2">
-            <a href="/" target="_blank" class="block text-center w-full bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 py-2 rounded-lg font-medium hover:bg-blue-100 dark:hover:bg-blue-900/50">🔗 访问前台</a>
-            <button onclick="logout()" class="w-full bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 py-2 rounded-lg font-medium hover:bg-red-100 dark:hover:bg-red-900/50">退出登录</button>
+        <div class="p-4 border-t border-slate-700">
+            <button onclick="logout()" class="w-full bg-red-900/30 text-red-400 py-2 rounded-lg">退出登录</button>
         </div>
     </aside>
 
-    <!-- 主内容区 -->
-    <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
-        <header class="h-16 border-b flex items-center justify-between px-6 shrink-0 bg-white dark:bg-[#0f172a] border-gray-200 dark:border-slate-800">
-            <h2 class="text-lg font-bold" id="pageTitle">数据汇总</h2>
-            <div class="flex items-center gap-4 text-sm text-gray-500 dark:text-slate-400">
-                <span>欢迎回来，管理员</span>
-            </div>
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+        <header class="h-16 border-b border-slate-700 flex items-center px-6 bg-[#0f172a]">
+            <h2 class="text-lg font-bold" id="pageTitle">文章管理</h2>
         </header>
 
         <div class="flex-1 overflow-y-auto p-6" id="mainContent">
             
-            <!-- 1. 数据汇总 -->
-            <div id="tab-dashboard" class="content-section active">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                    <div class="card p-6 border-l-4 border-[#f0b90b]">
-                        <div class="text-sm text-gray-500 mb-1">总文章数</div>
-                        <div class="text-3xl font-bold" id="statTotalArticles">0</div>
+            <!-- 文章管理 -->
+            <div id="tab-articles" class="content-section active">
+                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <div class="card p-6">
+                        <h3 class="font-bold mb-4 text-[#f0b90b]">发布新文章</h3>
+                        <div class="space-y-4 mb-4">
+                            <div class="border border-slate-700 p-3 rounded bg-[#0f172a]">
+                                <p class="text-xs text-gray-400 mb-2">发布语言（勾选后自动机翻）：</p>
+                                <div class="flex gap-4" id="articleLangCheckboxes"></div>
+                            </div>
+                            <input type="text" id="artTitle" placeholder="源标题" class="input w-full">
+                            <textarea id="artSummary" placeholder="源摘要" class="input w-full" rows="2"></textarea>
+                            <div class="bg-white rounded-lg"><div id="editor-container"></div></div>
+                        </div>
+                        <button onclick="submitArticle()" id="articleSubmitBtn" class="bg-[#f0b90b] text-black px-6 py-2 rounded font-bold hover:opacity-90">智能翻译并发布</button>
                     </div>
-                    <div class="card p-6 border-l-4 border-blue-500">
-                        <div class="text-sm text-gray-500 mb-1">黑客攻击事件 (hack)</div>
-                        <div class="text-3xl font-bold text-blue-500" id="statHackArticles">0</div>
-                    </div>
-                    <div class="card p-6 border-l-4 border-red-500">
-                        <div class="text-sm text-gray-500 mb-1">钓鱼诈骗事件 (scam)</div>
-                        <div class="text-3xl font-bold text-red-500" id="statScamArticles">0</div>
-                    </div>
-                </div>
-                <div class="card p-6">
-                    <h3 class="font-bold mb-4">最近发布</h3>
-                    <div class="space-y-3" id="recentArticlesList">
-                        <!-- 动态渲染 -->
+
+                    <div class="card p-6 overflow-y-auto" style="max-height: 800px;">
+                        <h3 class="font-bold mb-4">已发布文章</h3>
+                        <div id="articleList" class="space-y-3"></div>
                     </div>
                 </div>
             </div>
 
-            <!-- 2. 用户管理 -->
-            <div id="tab-users" class="content-section">
+            <!-- 多语言管理 -->
+            <div id="tab-languages" class="content-section">
+                <div class="card p-6 mb-6">
+                    <h3 class="font-bold mb-4">添加新语言</h3>
+                    <div class="grid grid-cols-3 gap-3 mb-3">
+                        <input type="text" id="newLangCode" placeholder="代码 (如 fr)" class="input">
+                        <input type="text" id="newLangName" placeholder="名称" class="input">
+                        <input type="text" id="newLangFlag" placeholder="国旗 (如 🇫🇷)" class="input">
+                    </div>
+                    <button onclick="addLanguage()" class="bg-blue-600 px-6 py-2 rounded font-bold">添加</button>
+                </div>
                 <div class="card overflow-hidden">
                     <table class="w-full text-left text-sm">
-                        <thead class="bg-gray-50 dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700">
-                            <tr><th class="p-4">ID</th><th class="p-4">钱包地址</th><th class="p-4">注册时间</th><th class="p-4">状态</th></tr>
-                        </thead>
-                        <tbody id="userList">
-                            <tr><td colspan="4" class="p-4 text-center text-gray-500">暂无用户数据 (需对接钱包登录)</td></tr>
-                        </tbody>
+                        <thead class="bg-gray-800"><tr><th class="p-4">代码</th><th class="p-4">名称</th><th class="p-4">状态</th></tr></thead>
+                        <tbody id="languageList"></tbody>
                     </table>
                 </div>
             </div>
 
-            <!-- 3. 文章管理 -->
-            <div id="tab-articles" class="content-section">
-                <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <!-- 左侧表单 -->
-                    <div class="card p-6">
-                        <h3 class="font-bold mb-4 text-[#f0b90b]" id="articleFormTitle">发布新文章</h3>
-                        <div class="space-y-4 mb-4">
-                            <input type="hidden" id="editArticleId">
-                            
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs text-gray-500 mb-1">文章分类</label>
-                                    <select id="artType" class="input w-full p-2 rounded">
-                                        <option value="normal">综合资讯 (normal)</option>
-                                        <option value="hack">黑客攻击 (hack)</option>
-                                        <option value="scam">钓鱼诈骗 (scam)</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-gray-500 mb-1">作者</label>
-                                    <input type="text" id="artAuthor" placeholder="例如：链安快讯" class="input w-full p-2 rounded" value="链安快讯">
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-xs text-gray-500 mb-1">文章标题</label>
-                                <input type="text" id="artTitle" placeholder="请输入文章标题" class="input w-full p-2 rounded">
-                            </div>
-                            
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-xs text-gray-500 mb-1">封面图标识 (文字或URL)</label>
-                                    <input type="text" id="artImageText" placeholder="如：[比特币图片] 或 URL" class="input w-full p-2 rounded" value="[新闻图片]">
-                                </div>
-                                <div>
-                                    <label class="block text-xs text-gray-500 mb-1">文章摘要 (列表页显示)</label>
-                                    <textarea id="artDesc" placeholder="请输入摘要..." class="input w-full p-2 rounded" rows="2"></textarea>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label class="block text-xs text-gray-500 mb-1">文章正文 (富文本)</label>
-                                <div class="bg-white rounded-lg">
-                                    <div id="editor-container"></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="submitArticle()" id="articleSubmitBtn" class="bg-[#f0b90b] text-black px-6 py-2 rounded font-bold hover:opacity-90">发布文章</button>
-                            <button onclick="resetArticleForm()" id="articleCancelBtn" class="bg-gray-200 dark:bg-slate-700 text-gray-800 dark:text-white px-6 py-2 rounded font-bold hover:bg-gray-300 dark:hover:bg-slate-600 hidden">取消编辑</button>
-                        </div>
-                    </div>
-
-                    <!-- 右侧列表 -->
-                    <div class="card p-6 overflow-y-auto" style="max-height: calc(100vh - 120px);">
-                        <h3 class="font-bold mb-4">已发布文章</h3>
-                        <div id="articleList" class="space-y-3">
-                            <!-- 动态渲染 -->
-                        </div>
-                    </div>
+            <!-- 翻译汇总 -->
+            <div id="tab-translogs" class="content-section">
+                <div class="grid grid-cols-2 gap-6 mb-6">
+                    <div class="card p-6"><div class="text-sm text-gray-400">总翻译次数</div><div class="text-3xl font-bold text-blue-500" id="logTotalCount">0</div></div>
+                    <div class="card p-6"><div class="text-sm text-gray-400">总消耗字符</div><div class="text-3xl font-bold text-green-500" id="logTotalChars">0</div></div>
+                </div>
+                <div class="card overflow-hidden">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-800"><tr><th class="p-4">时间</th><th class="p-4">目标语言</th><th class="p-4">消耗字符</th></tr></thead>
+                        <tbody id="translationLogList"></tbody>
+                    </table>
                 </div>
             </div>
 
-            <!-- 占位模块：合作墙、多语言、设置 -->
-            <div id="tab-partners" class="content-section"><div class="card p-6 text-center text-gray-500">合作墙管理暂未开放 (按需扩展)</div></div>
-            <div id="tab-languages" class="content-section"><div class="card p-6 text-center text-gray-500">多语言管理暂未开放 (按需扩展)</div></div>
-            <div id="tab-settings" class="content-section"><div class="card p-6 text-center text-gray-500">系统设置暂未开放 (按需扩展)</div></div>
+            <!-- 系统设置 -->
+            <div id="tab-settings" class="content-section">
+                <div class="card p-6 max-w-2xl mb-6">
+                    <h3 class="font-bold text-lg mb-4">语言与翻译配置</h3>
+                    
+                    <div class="flex items-center justify-between border-b border-slate-700 pb-4 mb-4">
+                        <div>
+                            <div class="font-bold">自动 IP 识别语言</div>
+                            <div class="text-xs text-gray-500">开启后，用户首次访问将根据 IP 自动选择对应语言</div>
+                        </div>
+                        <!-- 自动语言配置开关 -->
+                        <input type="checkbox" id="autoLangSwitch" class="w-5 h-5 accent-[#f0b90b] cursor-pointer" onchange="toggleAutoLang(this.checked)">
+                    </div>
+
+                    <div class="space-y-4 mb-6">
+                        <div>
+                            <label class="block text-sm text-gray-400 mb-1">DeepL API Key 1</label>
+                            <input type="text" id="deeplKey1" class="input w-full" placeholder="例如: xxxx:fx">
+                        </div>
+                    </div>
+                    <button onclick="saveSettings()" class="bg-blue-600 px-6 py-2 rounded font-bold">保存配置</button>
+                </div>
+            </div>
 
         </div>
     </main>
 
-    <script>
-        // ==========================================
-        // 登录与主题逻辑
-        // ==========================================
-        function toggleTheme() {
-            var html = document.documentElement;
-            var isDark = html.classList.contains('dark');
-            html.classList.remove('dark', 'light');
-            html.classList.add(isDark ? 'light' : 'dark');
-            localStorage.setItem('wad_theme', isDark ? 'light' : 'dark');
-        }
-
-        function doLogin() {
-            const pwd = document.getElementById('adminPwd').value;
-            if (pwd === 'admin') {
-                sessionStorage.setItem('cms_logged', 'true');
-                document.getElementById('loginOverlay').style.display = 'none';
-                loadArticles(); // 登录后加载数据
-            } else {
-                alert('密码错误，默认密码为 admin');
-            }
-        }
-
-        function logout() {
-            sessionStorage.removeItem('cms_logged');
-            window.location.reload();
-        }
-
-        // 检查登录状态
-        if (sessionStorage.getItem('cms_logged') === 'true') {
-            document.getElementById('loginOverlay').style.display = 'none';
-        }
-
-        // ==========================================
-        // Tab 切换
-        // ==========================================
-        function switchTab(tabId, el) {
-            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
-            
-            document.getElementById('tab-' + tabId).classList.add('active');
-            el.classList.add('active');
-            
-            const titles = { dashboard: '数据汇总', users: '用户管理', articles: '文章管理', partners: '合作墙管理', languages: '多语言管理', settings: '系统设置' };
-            document.getElementById('pageTitle').innerText = titles[tabId] || '后台管理';
-        }
-
-        // ==========================================
-        // 富文本编辑器初始化
-        // ==========================================
-        const quill = new Quill('#editor-container', {
-            theme: 'snow',
-            placeholder: '在此输入文章完整内容...',
-            modules: {
-                toolbar: [
-                    [{ 'header': [1, 2, 3, false] }],
-                    ['bold', 'italic', 'underline', 'strike'],
-                    ['blockquote', 'code-block'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    ['link', 'image'],
-                    ['clean']
-                ]
-            }
-        });
-
-        // ==========================================
-        // API 数据交互逻辑
-        // ==========================================
-        const API_BASE = '/api/articles';
-        let globalArticles = [];
-
-        // 获取文章列表
-        async function loadArticles() {
-            try {
-                const res = await fetch(API_BASE);
-                if (!res.ok) throw new Error('网络请求失败');
-                globalArticles = await res.json();
-                
-                renderArticleList();
-                updateDashboardStats();
-            } catch (error) {
-                console.error('加载文章失败:', error);
-                document.getElementById('articleList').innerHTML = `<div class="text-red-500 text-center">加载失败，请检查后端服务。</div>`;
-            }
-        }
-
-        // 渲染右侧文章列表
-        function renderArticleList() {
-            const container = document.getElementById('articleList');
-            if (globalArticles.length === 0) {
-                container.innerHTML = `<div class="text-center text-gray-500 py-4">暂无文章，请先发布。</div>`;
-                return;
-            }
-
-            container.innerHTML = globalArticles.map(art => `
-                <div class="p-3 bg-gray-50 dark:bg-[#0d1117] border border-gray-200 dark:border-slate-700 rounded-lg flex justify-between items-center">
-                    <div class="flex-1 min-w-0 pr-4">
-                        <div class="text-xs text-[#f0b90b] mb-1">${getTypeName(art.type)}</div>
-                        <div class="font-bold text-sm truncate">${art.title}</div>
-                        <div class="text-xs text-gray-500 mt-1">${art.author} · ${art.time}</div>
-                    </div>
-                    <div class="flex gap-2 shrink-0">
-                        <button onclick="editArticle('${art.id}')" class="text-blue-500 text-xs px-2 py-1 bg-blue-50 dark:bg-blue-900/30 rounded hover:bg-blue-100">编辑</button>
-                        <button onclick="deleteArticle('${art.id}')" class="text-red-500 text-xs px-2 py-1 bg-red-50 dark:bg-red-900/30 rounded hover:bg-red-100">删除</button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        // 更新数据汇总卡片
-        function updateDashboardStats() {
-            document.getElementById('statTotalArticles').innerText = globalArticles.length;
-            document.getElementById('statHackArticles').innerText = globalArticles.filter(a => a.type === 'hack').length;
-            document.getElementById('statScamArticles').innerText = globalArticles.filter(a => a.type === 'scam').length;
-            
-            // 渲染最近 5 篇文章
-            const recent = globalArticles.slice(0, 5);
-            const recentHtml = recent.map(art => `
-                <div class="flex justify-between items-center p-3 border-b border-gray-100 dark:border-slate-800 last:border-0">
-                    <div class="truncate pr-4"><span class="text-[#f0b90b] mr-2">[${getTypeName(art.type)}]</span>${art.title}</div>
-                    <div class="text-xs text-gray-500 whitespace-nowrap">${art.time}</div>
-                </div>
-            `).join('');
-            document.getElementById('recentArticlesList').innerHTML = recentHtml || '<p class="text-gray-500">暂无数据</p>';
-        }
-
-        function getTypeName(type) {
-            const map = { normal: '综合', hack: '黑客', scam: '诈骗' };
-            return map[type] || '综合';
-        }
-
-        // 提交文章 (新增或更新)
-        async function submitArticle() {
-            const id = document.getElementById('editArticleId').value;
-            const title = document.getElementById('artTitle').value.trim();
-            const type = document.getElementById('artType').value;
-            const author = document.getElementById('artAuthor').value.trim();
-            const desc = document.getElementById('artDesc').value.trim();
-            const imageText = document.getElementById('artImageText').value.trim();
-            // 获取富文本内容 (HTML)
-            const content = quill.root.innerHTML;
-
-            if (!title || !desc || quill.getText().trim() === '') {
-                return alert('标题、摘要和正文内容不能为空！');
-            }
-
-            const payload = { title, type, author, desc, imageText, content };
-
-            try {
-                document.getElementById('articleSubmitBtn').innerText = '提交中...';
-                
-                // 注意：这里因为你的 server.js 之前写的只有 POST 接口，暂时都走 POST
-                // 如果需要真正的更新，需要后端配合加 PUT 接口。为了快速跑通，这里先做新增。
-                const res = await fetch(API_BASE, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!res.ok) throw new Error('保存失败');
-
-                alert('发布成功！');
-                resetArticleForm();
-                loadArticles(); // 刷新列表
-            } catch (error) {
-                alert('操作失败：' + error.message);
-            } finally {
-                document.getElementById('articleSubmitBtn').innerText = '发布文章';
-            }
-        }
-
-        // 删除文章
-        async function deleteArticle(id) {
-            if (!confirm('确定要删除这篇文章吗？')) return;
-            try {
-                const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
-                if (!res.ok) throw new Error('删除失败');
-                loadArticles();
-            } catch (error) {
-                alert(error.message);
-            }
-        }
-
-        // 编辑文章回填
-        function editArticle(id) {
-            const art = globalArticles.find(a => a.id == id);
-            if (!art) return;
-
-            document.getElementById('editArticleId').value = art.id;
-            document.getElementById('artType').value = art.type;
-            document.getElementById('artTitle').value = art.title;
-            document.getElementById('artAuthor').value = art.author;
-            document.getElementById('artDesc').value = art.desc;
-            document.getElementById('artImageText').value = art.imageText || '[新闻图片]';
-            
-            // 回填 Quill 编辑器 (如果内容包含 HTML 标签)
-            quill.root.innerHTML = art.content;
-
-            document.getElementById('articleFormTitle').innerText = '编辑文章';
-            document.getElementById('articleSubmitBtn').innerText = '保存修改';
-            document.getElementById('articleCancelBtn').classList.remove('hidden');
-        }
-
-        // 重置表单
-        function resetArticleForm() {
-            document.getElementById('editArticleId').value = '';
-            document.getElementById('artType').value = 'normal';
-            document.getElementById('artTitle').value = '';
-            document.getElementById('artAuthor').value = '链安快讯';
-            document.getElementById('artDesc').value = '';
-            document.getElementById('artImageText').value = '[新闻图片]';
-            quill.root.innerHTML = '';
-
-            document.getElementById('articleFormTitle').innerText = '发布新文章';
-            document.getElementById('articleSubmitBtn').innerText = '发布文章';
-            document.getElementById('articleCancelBtn').classList.add('hidden');
-        }
-
-        // 初始化加载
-        if (sessionStorage.getItem('cms_logged') === 'true') {
-            loadArticles();
-        }
-
-    </script>
+    <script src="/js/admin.js"></script>
 </body>
 </html>
