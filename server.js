@@ -22,7 +22,6 @@ const DB_FILES = {
     tracking: path.join(DB_DIR, 'tracking.json')
 };
 
-// 更新基准字典
 const BASE_DICT = {
     siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪",
     loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据",
@@ -41,7 +40,7 @@ Object.keys(DB_FILES).forEach(key => {
         if (key === 'admin') initialData = { password: 'admin888' };
         if (key === 'settings') initialData = { 
             autoLang: true, deeplKey1: '', deeplKey2: '',
-            checkWaitTime: 5, // 新增：检测等待秒数
+            checkWaitTime: 5, 
             toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成，不构成任何投资建议或法律依据。" }
         };
         if (key === 'categories') initialData = [
@@ -66,12 +65,12 @@ async function seedInitialArticles() {
     try {
         let articles = readDB('articles');
         if (articles.length === 0) {
-            console.log('⏳ 检测到文章库为空，正在注入 10 篇初始文章...');
+            console.log('⏳ 检测到文章库为空，正在注入初始文章...');
             const now = new Date().toISOString();
             const seedData = [
                 { id: uuidv4(), groupId: "g1", lang: "zh", type: "hack", title: "币安遭遇巨额黑客攻击！何一表态全额兜底", summary: "10月30日币安联合创始人何一公开发声，明确表示将全额兜底此次被盗资产。", content: "<p>10月30日币安联合创始人何一公开发声，明确表示将全额兜底此次被盗资产。据悉，被搬空的钱包，正是币安拿来给客户兜底的那个钱包。56亿资产被盗，稳定币冻结但ETH难以追回。</p>", coverUrl: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80", time: now },
                 { id: uuidv4(), groupId: "g1", lang: "en", type: "hack", title: "Binance Suffers Massive Hack! Yi He Promises Full Compensation", summary: "Binance co-founder Yi He publicly stated on Oct 30 that the exchange will fully cover the stolen assets.", content: "<p>Binance co-founder Yi He publicly stated on Oct 30 that the exchange will fully cover the stolen assets. The emptied wallet was the one used by Binance to compensate customers. 5.6 billion stolen.</p>", coverUrl: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80", time: now },
-                { id: uuidv4(), groupId: "g2", lang: "zh", type: "normal", title: "以太坊基金会发布最新路线图", summary: "以太坊核心开发者会议确定了下一次网络升级的时间节点，重点解决Layer2互操作性问题。", content: "<p>以太坊核心开发者会议确定了下一次网络升级的时间节点，重点解决Layer2互操作性问题及降低Gas费用。</p>", coverUrl: "https://images.unsplash.com/photo-1622630998477-20aa696ecb05?auto=format&fit=crop&w=400&q=80", time: now },
+                { id: uuidv4(), groupId: "g2", lang: "zh", type: "normal", title: "以太坊基金会发布最新路线图", summary: "以太坊核心开发者会议确定了下一次网络升级的时间节点，重点解决Layer2互操作性问题。", content: "<p>以太坊核心开发者会议确定了下一次网络升级的时间节点，重点解决Layer2互操作性及降低Gas费用。</p>", coverUrl: "https://images.unsplash.com/photo-1622630998477-20aa696ecb05?auto=format&fit=crop&w=400&q=80", time: now },
                 { id: uuidv4(), groupId: "g3", lang: "zh", type: "hack", title: "某知名 DeFi 协议遭遇闪电贷攻击", summary: "据慢雾安全团队监测，某知名DeFi协议遭遇闪电贷攻击，损失约1200万美元。", content: "<p>据慢雾安全团队监测，某知名DeFi协议遭遇闪电贷攻击，损失约1200万美元。目前攻击者已将资金转入Tornado Cash。</p>", coverUrl: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=400&q=80", time: now },
                 { id: uuidv4(), groupId: "g4", lang: "zh", type: "scam", title: "警惕：新型 Discord 钓鱼链接蔓延", summary: "近期出现大量伪造官方机器人的钓鱼骗局，请勿点击不明 Mint 链接。", content: "<p>Web3 安全团队监测到，近期有黑客利用被攻破的 Discord 服务器，伪造官方机器人发送虚假的空投链接。已有数百名用户中招。</p>", coverUrl: "https://images.unsplash.com/photo-1614064641938-3bbee52942c7?auto=format&fit=crop&w=400&q=80", time: now }
             ];
@@ -212,6 +211,7 @@ app.put('/api/admin/languages/:code', auth, (req, res) => {
     if (idx > -1) { langs[idx] = { ...langs[idx], ...req.body }; writeDB('languages', langs); } res.json({ success: true });
 });
 
+// 发布文章
 app.post('/api/admin/article/translate', auth, async (req, res) => {
     const { title, summary, content, coverUrl, targetLangs, type } = req.body;
     const articles = readDB('articles'); const groupId = uuidv4();
@@ -225,6 +225,53 @@ app.post('/api/admin/article/translate', auth, async (req, res) => {
         writeDB('articles', articles); res.json({ success: true });
     } catch (e) { res.status(502).json({ error: e.message }); }
 });
+
+// 【新增】更新整组文章（编辑用）
+app.put('/api/admin/article-group/:groupId', auth, async (req, res) => {
+    const { groupId } = req.params;
+    const { title, summary, content, coverUrl, targetLangs, type } = req.body;
+    let articles = readDB('articles');
+    
+    // 1. 更新源语言 (默认从中文作为主语言修改)
+    let sourceArticle = articles.find(a => a.groupId === groupId && a.lang === 'zh');
+    if (sourceArticle) {
+        sourceArticle.title = title;
+        sourceArticle.summary = summary;
+        sourceArticle.content = content;
+        sourceArticle.coverUrl = coverUrl;
+        sourceArticle.type = type;
+        sourceArticle.time = new Date().toISOString();
+    }
+
+    // 2. 处理目标语言
+    const foreignLangs = targetLangs.filter(lang => lang !== 'zh');
+    try {
+        for (let lang of foreignLangs) {
+            const translated = await translateText([title, summary, content], lang);
+            let existing = articles.find(a => a.groupId === groupId && a.lang === lang);
+            
+            if (existing) {
+                // 更新已有翻译
+                existing.title = translated[0];
+                existing.summary = translated[1];
+                existing.content = translated[2];
+                existing.coverUrl = coverUrl;
+                existing.type = type;
+                existing.time = new Date().toISOString();
+            } else {
+                // 新建之前没有的翻译
+                articles.push({
+                    id: uuidv4(), groupId, lang, type,
+                    title: translated[0], summary: translated[1], content: translated[2],
+                    coverUrl, time: new Date().toISOString()
+                });
+            }
+        }
+        writeDB('articles', articles);
+        res.json({ success: true });
+    } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
 app.delete('/api/admin/article-group/:groupId', auth, (req, res) => { writeDB('articles', readDB('articles').filter(a => a.groupId !== req.params.groupId && a.id !== req.params.groupId)); res.json({ success: true }); });
 
 app.put('/api/admin/tracking/config', auth, (req, res) => { const config = readDB('tracking'); config.interval = Math.max(0, Number(req.body.interval) || 0); writeDB('tracking', config); res.json({ success: true }); });
