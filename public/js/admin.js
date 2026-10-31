@@ -162,7 +162,9 @@ async function fetchData() {
     document.getElementById('deeplKey1').value = globalSettings.deeplKey1 || '';
     document.getElementById('deeplKey2').value = globalSettings.deeplKey2 || '';
     
-    // 渲染检测窗描述勾选框（核心逻辑）
+    // 新增：回显倒计时时间
+    document.getElementById('checkWaitTime').value = globalSettings.checkWaitTime || 5;
+
     const toolDesc = globalSettings.toolDesc || {};
     document.getElementById('toolDescZh').value = toolDesc.zh || '';
     
@@ -191,7 +193,7 @@ function renderSources() {
     `).join('');
 }
 
-// ================= 业务操作：文章与板块 =================
+// ================= 业务操作 =================
 async function submitArticle() {
     const type = document.getElementById('artType').value;
     const title = document.getElementById('artTitle').value;
@@ -261,7 +263,6 @@ async function deleteCategory(id) {
     } 
 }
 
-// ================= 业务操作：追踪管理 =================
 async function saveTrackingConfig() {
     const interval = parseInt(document.getElementById('trackingInterval').value) || 0;
     await fetch('/api/admin/tracking/config', { 
@@ -291,7 +292,6 @@ async function deleteSource(index) {
     fetchData();
 }
 
-// ================= 业务操作：多语言与翻译 =================
 async function addLanguage() {
     const code = document.getElementById('newLangCode').value.trim(); 
     const name = document.getElementById('newLangName').value.trim(); 
@@ -331,7 +331,6 @@ async function saveLangDict() {
 
 async function autoTranslateDict(code) {
     if(!confirm(`确定要使用真实的 DeepL API 自动覆盖翻译 [${code}] 的菜单字典吗？`)) return;
-    
     const btn = event.target; 
     const old = btn.innerText; 
     btn.innerText = '请求翻译中...'; 
@@ -359,15 +358,10 @@ async function autoTranslateDict(code) {
     }
 }
 
-// ================= 业务操作：系统设置与安全 =================
-// 1. 保存检测窗描述（独立翻译并发布）
 async function saveToolDesc() {
     const toolDescZh = document.getElementById('toolDescZh').value;
     if (!toolDescZh) return alert('请输入中文描述文本');
-    
-    // 获取用户勾选的语言
     const checkedLangs = Array.from(document.querySelectorAll('.tool-desc-lang-cb:checked')).map(cb => cb.value);
-    
     const btn = event.target;
     const old = btn.innerText;
     btn.innerText = '翻译并保存中...'; 
@@ -382,7 +376,7 @@ async function saveToolDesc() {
         
         if (res.ok) {
             alert('描述已保存并完成翻译！');
-            fetchData(); // 刷新状态
+            fetchData(); 
         } else {
             const data = await res.json();
             alert('保存失败: ' + (data.error || '未知错误'));
@@ -395,11 +389,11 @@ async function saveToolDesc() {
     }
 }
 
-// 2. 保存基础设置（Key、IP开关等）
 async function saveSettings() {
     const deeplKey1 = document.getElementById('deeplKey1').value; 
     const deeplKey2 = document.getElementById('deeplKey2').value; 
     const autoLang = document.getElementById('autoLangSwitch').checked;
+    const checkWaitTime = parseInt(document.getElementById('checkWaitTime').value) || 5;
     
     const btn = event.target;
     const old = btn.innerText;
@@ -410,11 +404,12 @@ async function saveSettings() {
         const res = await fetch('/api/admin/settings', { 
             method: 'PUT', 
             headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
-            body: JSON.stringify({ deeplKey1, deeplKey2, autoLang }) 
+            body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, checkWaitTime }) 
         }); 
         
         if (res.ok) {
             alert('系统配置已保存！');
+            fetchData(); 
         } else {
             const data = await res.json();
             alert('保存失败: ' + (data.error || '未知错误'));
