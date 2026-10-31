@@ -37,7 +37,6 @@ Object.keys(DB_FILES).forEach(key => {
         if (key === 'admin') initialData = { password: 'admin888' };
         if (key === 'settings') initialData = { 
             autoLang: true, deeplKey1: '', deeplKey2: '',
-            // 初始化一个空的多语言对象
             toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成，不构成任何投资建议或法律依据。" }
         };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
@@ -132,25 +131,40 @@ app.get('/api/admin/stats', auth, (req, res) => {
 app.post('/api/admin/categories', auth, (req, res) => { const cats = readDB('categories'); cats.push(req.body); writeDB('categories', cats); res.json({ success: true }); });
 app.delete('/api/admin/categories/:id', auth, (req, res) => { writeDB('categories', readDB('categories').filter(c => c.id !== req.params.id)); res.json({ success: true }); });
 
-// 保存设置 (直接保存传上来的 toolDesc 对象)
-app.put('/api/admin/settings', auth, (req, res) => {
+// 保存设置
+app.put('/api/admin/settings', auth, async (req, res) => {
     const oldSettings = readDB('settings');
-    // toolDesc 直接从 req.body 合并覆盖
     const newSettings = { ...oldSettings, ...req.body };
+
+    // 处理检测窗描述的多语言翻译
+    if (req.body.toolDescZh !== undefined && req.body.targetLangs !== undefined) {
+        const zhDesc = req.body.toolDescZh;
+        const targetLangs = req.body.targetLangs;
+        
+        let newToolDesc = oldSettings.toolDesc || {};
+        newToolDesc.zh = zhDesc;
+
+        try {
+            const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
+            for (let l of langs) {
+                // 只翻译用户勾选的目标语言
+                if (targetLangs.includes(l.code)) {
+                    const result = await translateText([zhDesc], l.code);
+                    newToolDesc[l.code] = result[0];
+                }
+            }
+            newSettings.toolDesc = newToolDesc;
+        } catch (e) {
+            return res.status(500).json({ error: e.message });
+        }
+    }
+
+    // 移除前端传来的冗余参数，防止污染 settings.json
+    delete newSettings.toolDescZh;
+    delete newSettings.targetLangs;
+
     writeDB('settings', newSettings);
     res.json({ success: true });
-});
-
-// 【新增】单发文本翻译接口 (用于单独翻译某一段描述)
-app.post('/api/admin/translate-single', auth, async (req, res) => {
-    const { text, targetLang } = req.body;
-    if (!text) return res.status(400).json({ error: '文本不能为空' });
-    try {
-        const result = await translateText([text], targetLang);
-        res.json({ success: true, translatedText: result[0] });
-    } catch (e) {
-        res.status(502).json({ error: e.message });
-    }
 });
 
 app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
