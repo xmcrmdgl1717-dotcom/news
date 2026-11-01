@@ -34,7 +34,9 @@ const BASE_DICT = {
     resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", 
     resDanger: "❌ 高危警告", resDangerDesc: "疑似黑客地址！",
     btnMonitor: "加入监控", btnCopy: "复制地址", alertWatchAdded: "监控已加入", alertAddrCopied: "地址已复制",
-    safariTitle: "请使用 Safari 浏览器打开", safariDesc: "为了您的安全请使用苹果官方 Safari 打开", copyBtn: "复制当前链接", copied: "已复制"
+    safariTitle: "请使用 Safari 浏览器打开", 
+    safariDesc: "系统检测到您正在使用非苹果官方 Safari 访问，为了您的安全请您使用苹果官方 Safari 打开访问。", 
+    copyBtn: "复制当前链接", copied: "已复制"
 };
 
 // 初始化数据文件
@@ -55,7 +57,7 @@ Object.keys(DB_FILES).forEach(key => {
             { code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, 
             { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }
         ];
-        if (key === 'tracking') initialData = { interval: 1, maxLogs: 100, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }], logs: [], lastFetchTime: 0 };
+        if (key === 'tracking') initialData = { interval: 1, maxLogs: 100, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }], logs: [], lastFetchTime: 0, autoTranslate: true };
         if (key === 'visits') initialData = []; 
         if (key === 'crawl') initialData = { enabled: false, interval: 30, lastCrawlTime: 0, configs: [] };
         fs.writeFileSync(DB_FILES[key], JSON.stringify(initialData, null, 2));
@@ -146,12 +148,16 @@ async function fetchAndTranslateTracking() {
 
         const titles = ["Lazarus Group", "某 DeFi 攻击者", "未知巨鲸地址", "跨链桥攻击者"];
         const addrs = ["0x098B716B8Aaf21512996dC57EB0615e2383E2f96", "0xFb3bD022D5DAcF95EFFcf249C0b79f7eDc08cD22"];
-        const newTitle = titles[Math.floor(Math.random() * titles.length)] + " " + Math.floor(Math.random()*1000);
-        const titleTranslations = { en: newTitle, zh: newTitle };
+        const newTitleZh = titles[Math.floor(Math.random() * titles.length)] + " " + Math.floor(Math.random()*1000);
         
-        const langs = readDB('languages').filter(l => l.active && l.code !== 'zh' && l.code !== 'en');
-        for (let l of langs) {
-            try { const result = await translateText([newTitle], l.code, 'EN'); titleTranslations[l.code] = result[0]; } catch (e) { titleTranslations[l.code] = null; }
+        let titleTranslations = { zh: newTitleZh, en: "Suspicious Activity " + Math.floor(Math.random()*1000) };
+        
+        // 检查是否开启自动翻译开关
+        if (tracking.autoTranslate !== false) {
+            const langs = readDB('languages').filter(l => l.active && l.code !== 'zh' && l.code !== 'en');
+            for (let l of langs) {
+                try { const result = await translateText([newTitleZh], l.code, 'ZH'); titleTranslations[l.code] = result[0]; } catch (e) { titleTranslations[l.code] = newTitleZh; }
+            }
         }
 
         const newLog = { id: uuidv4(), time: new Date().toISOString(), title: titleTranslations, address: addrs[Math.floor(Math.random() * addrs.length)], tag: "高危" };
@@ -297,11 +303,16 @@ app.get('/api/articles/:id', (req, res) => { res.json(readDB('articles').find(a 
 
 app.get('/api/tracking', (req, res) => {
     const tracking = readDB('tracking');
-    if (Date.now() - (tracking.lastFetchTime || 0) > (tracking.interval * 60000)) fetchAndTranslateTracking();
+    if (Date.now() - (tracking.lastFetchTime || 0) > (tracking.interval * 60000) && tracking.interval > 0) fetchAndTranslateTracking();
     const lang = req.query.lang || 'en';
     let logs = readDB('tracking').logs || [];
-    logs = logs.filter(l => l.title && l.title[lang]);
-    res.json(logs.map(l => ({ id: l.id, address: l.address, tag: l.tag, title: l.title[lang] })).slice(0, 20));
+    
+    // 多语言回退逻辑，不再因为缺少语言而隐藏数据
+    const formattedLogs = logs.map(l => {
+        let finalTitle = l.title[lang] || l.title['zh'] || l.title['en'] || 'Untitled';
+        return { id: l.id, address: l.address, tag: l.tag, title: finalTitle };
+    });
+    res.json(formattedLogs.slice(0, 20));
 });
 
 app.post('/api/track/visit', (req, res) => {
@@ -498,6 +509,10 @@ app.put('/api/admin/settings', auth, async (req, res) => {
     const newSettings = { ...oldSettings, ...req.body };
     delete newSettings.targetLangs;
 
+    if (req.body.siteLogo !== undefined) {
+        newSettings.siteLogo = req.body.siteLogo;
+    }
+
     // 1. 处理工具描述翻译
     if (req.body.toolDescZh !== undefined && req.body.targetLangs !== undefined) {
         let newToolDesc = oldSettings.toolDesc || {};
@@ -576,7 +591,14 @@ app.put('/api/admin/article-group/:groupId', auth, async (req, res) => {
 });
 app.delete('/api/admin/article-group/:groupId', auth, (req, res) => { writeDB('articles', readDB('articles').filter(a => a.groupId !== req.params.groupId && a.id !== req.params.groupId)); res.json({ success: true }); });
 
-app.put('/api/admin/tracking/config', auth, (req, res) => { const config = readDB('tracking'); config.interval = Math.max(0, Number(req.body.interval) || 0); config.maxLogs = Math.max(10, Number(req.body.maxLogs) || 100); writeDB('tracking', config); res.json({ success: true }); });
+app.put('/api/admin/tracking/config', auth, (req, res) => { 
+    const config = readDB('tracking'); 
+    config.interval = Math.max(0, Number(req.body.interval) || 0); 
+    config.maxLogs = Math.max(10, Number(req.body.maxLogs) || 100); 
+    if (req.body.autoTranslate !== undefined) config.autoTranslate = req.body.autoTranslate;
+    writeDB('tracking', config); 
+    res.json({ success: true }); 
+});
 app.post('/api/admin/tracking/source', auth, (req, res) => { const config = readDB('tracking'); config.sources.push({ name: req.body.name, url: req.body.url }); writeDB('tracking', config); res.json({ success: true }); });
 app.delete('/api/admin/tracking/source/:index', auth, (req, res) => { const config = readDB('tracking'); config.sources.splice(Number(req.params.index), 1); writeDB('tracking', config); res.json({ success: true }); });
 app.post('/api/admin/tracking/logs/delete', auth, (req, res) => { let tracking = readDB('tracking'); tracking.logs = (tracking.logs || []).filter(l => !req.body.ids.includes(l.id)); writeDB('tracking', tracking); res.json({ success: true }); });
