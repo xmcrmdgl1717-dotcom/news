@@ -187,11 +187,16 @@
             <!-- 文章采集 -->
             <div id="tab-crawl" class="content-section">
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <!-- 左侧配置区 -->
                     <div class="card p-6 h-fit">
-                        <h3 class="font-bold text-lg mb-4 text-blue-600">采集任务配置</h3>
-                        <p class="text-xs text-gray-500 mb-4">支持根据 JSON 规则自动解析目标网站或 API。</p>
-                        <textarea id="crawlConfigCode" class="input w-full font-mono text-sm mb-4" rows="12" placeholder='{"url": "https://api.example.com/news", "mapping": {...}}'></textarea>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-lg text-blue-600">采集源管理</h3>
+                            <button onclick="openCrawlSourceModal()" class="px-3 py-1.5 bg-blue-100 text-blue-700 text-sm font-bold rounded hover:bg-blue-200">➕ 添加采集源</button>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-4">支持添加多个不同站点的 RSS/JSON 源，系统会自动处理并翻译。</p>
                         
+                        <div class="space-y-3 mb-6" id="crawlSourceList"></div>
+
                         <div class="flex items-center gap-4 mb-4 flex-wrap bg-gray-50 dark:bg-slate-800 p-4 rounded-lg">
                             <label class="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" id="crawlEnabled" class="w-5 h-5 accent-[#f0b90b]">
@@ -203,17 +208,18 @@
                                 <span class="text-sm">分钟采集一次</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="text-sm">每次获取</span>
+                                <span class="text-sm">每源获取</span>
                                 <input type="number" id="crawlLimit" class="input w-20 p-1 text-sm" value="10" min="1">
                                 <span class="text-sm">条</span>
                             </div>
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="saveCrawlConfig()" class="px-6 py-2 rounded font-bold text-white bg-blue-600 hover:bg-blue-700">保存配置</button>
-                            <button onclick="crawlNow()" id="btnCrawlNow" class="px-6 py-2 rounded font-bold text-white bg-green-600 hover:bg-green-700">立刻采集</button>
+                            <button onclick="saveCrawlConfig()" class="px-6 py-2 rounded font-bold text-white bg-blue-600 hover:bg-blue-700">保存全局设置</button>
+                            <button onclick="crawlNow()" id="btnCrawlNow" class="px-6 py-2 rounded font-bold text-white bg-green-600 hover:bg-green-700">立刻执行采集</button>
                         </div>
                     </div>
 
+                    <!-- 右侧列表区 -->
                     <div class="card p-6 overflow-y-auto" style="max-height: calc(100vh - 150px);">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="font-bold text-lg text-gray-800">已采集文章</h3>
@@ -373,8 +379,48 @@
     </div>
 
     <div id="editArticleModal" class="modal"><div class="card p-6 w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden"><div class="flex justify-between items-center mb-4 border-b pb-3" style="border-color: var(--cms-border);"><h3 class="font-bold text-xl" style="color: var(--cms-accent);">编辑文章</h3><button onclick="closeEditModal()" class="text-gray-500 hover:text-red-500 text-2xl leading-none">&times;</button></div><div class="flex-1 overflow-y-auto pr-2 space-y-4" id="editArticleFormContent"><input type="hidden" id="editArticleGroupId"><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">所属板块</label><select id="editArtType" class="input"></select></div></div><div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);"><p class="text-sm font-bold mb-2" style="color: var(--cms-text-muted);">多语言翻译状态：</p><div class="flex gap-4 flex-wrap" id="editArticleLangCheckboxes"></div></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源标题</label><input type="text" id="editArtTitle" class="input w-full"></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源摘要</label><textarea id="editArtSummary" class="input w-full" rows="2"></textarea></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">文章封面图</label><div class="flex items-center gap-2"><input type="file" id="editArtCoverFile" accept="image/*" class="input text-sm"><input type="text" id="editArtCoverUrl" placeholder="图片URL" class="input text-sm" readonly></div></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">文章正文</label><div class="bg-white rounded-lg"><div id="edit-editor-container"></div></div></div></div><div class="mt-4 pt-4 border-t flex justify-end gap-3" style="border-color: var(--cms-border);"><button onclick="closeEditModal()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-border); color: var(--cms-text-main);">取消</button><button onclick="submitEditArticle()" id="editArticleSubmitBtn" class="px-6 py-2 rounded font-bold transition hover:opacity-90" style="background-color: var(--cms-accent); color: #000;">保存修改并翻译</button></div></div></div>
+    
     <div id="editLangModal" class="modal"><div class="card p-6 w-full max-w-4xl max-h-[90vh] flex flex-col"><h3 class="font-bold text-lg mb-4" style="color: var(--cms-accent);">编辑语言字典</h3><input type="hidden" id="editLangCode"><textarea id="editLangDict" class="input flex-1 p-3 font-mono text-sm mb-4" rows="15"></textarea><div class="flex gap-2 justify-end"><button onclick="saveLangDict()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存</button><button onclick="document.getElementById('editLangModal').classList.remove('active')" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-border);">取消</button></div></div></div>
+    
     <div id="changePwdModal" class="modal"><div class="card p-6 w-96"><h3 class="font-bold text-lg mb-4">修改密码</h3><input type="password" id="newPwdInput" placeholder="新密码" class="input mb-4"><div class="flex gap-2"><button onclick="savePassword()" class="flex-1 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存</button><button onclick="document.getElementById('changePwdModal').classList.remove('active')" class="flex-1 py-2 rounded font-bold" style="background-color: var(--cms-border);">取消</button></div></div></div>
+
+    <!-- 采集源配置弹窗 -->
+    <div id="crawlSourceModal" class="modal">
+        <div class="card p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <h3 class="font-bold text-lg mb-4" style="color: var(--cms-accent);" id="crawlModalTitle">添加采集源</h3>
+            <input type="hidden" id="crawlSourceId">
+            <div class="flex-1 overflow-y-auto pr-2 space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源名称</label>
+                        <input type="text" id="crawlSourceName" class="input" placeholder="如: Cointelegraph">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源语言</label>
+                        <select id="crawlSourceLang" class="input"></select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">RSS/API 地址</label>
+                    <input type="text" id="crawlSourceUrl" class="input" placeholder="https://...">
+                </div>
+                
+                <div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);">
+                    <p class="text-sm font-bold mb-2" style="color: var(--cms-text-muted);">翻译并发布语言（勾选后会用DeepL自动翻译）：</p>
+                    <div class="flex gap-4 flex-wrap" id="crawlTargetLangCheckboxes"></div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">JSON Mapping 映射规则</label>
+                    <textarea id="crawlSourceMapping" class="input w-full font-mono text-sm" rows="8" placeholder='{"title": "title", "summary": "description"}'></textarea>
+                </div>
+            </div>
+            <div class="mt-4 pt-4 border-t flex justify-end gap-3" style="border-color: var(--cms-border);">
+                <button onclick="document.getElementById('crawlSourceModal').classList.remove('active')" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-border); color: var(--cms-text-main);">取消</button>
+                <button onclick="saveCrawlSource()" class="px-6 py-2 rounded font-bold transition hover:opacity-90" style="background-color: var(--cms-accent); color: #000;">保存</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/js/admin.js"></script>
 </body>
