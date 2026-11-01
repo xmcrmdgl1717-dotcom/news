@@ -130,7 +130,7 @@ async function fetchData() {
     applyFilters();
 }
 
-// 🚨 补全：多语言列表渲染，包含一键翻译
+// 🚨 多语言列表渲染，包含一键翻译
 function renderLanguages() {
     const tbody = document.getElementById('languageList');
     if (!tbody) return;
@@ -146,7 +146,7 @@ function renderLanguages() {
             </td>
             <td class="p-3 flex gap-2">
                 <button onclick="openEditLang('${l.code}')" class="text-blue-500 text-sm hover:underline">编辑字典</button>
-                <!-- 补充一键翻译按钮 -->
+                <!-- 一键翻译按钮 -->
                 <button onclick="autoTranslateDict('${l.code}', this)" class="text-orange-500 text-sm hover:underline">一键翻译</button>
                 <button onclick="deleteLanguage('${l.code}')" class="text-red-500 text-sm hover:underline">删除</button>
             </td>
@@ -172,10 +172,13 @@ async function deleteLanguage(code) {
     fetchData();
 }
 
-// 🚨 补全：多语言字典一键翻译
+// 🚨 多语言字典一键翻译（完善错误提示）
 async function autoTranslateDict(code, btn) {
-    if(!confirm(`确定要使用真实的 DeepL API 自动覆盖翻译 [${code}] 的菜单字典吗？`)) return;
-    const old = btn.innerText; btn.innerText = '请求翻译中...'; btn.disabled = true;
+    if(!confirm(`确定要使用 DeepL API 将基础字典翻译成 [${code}] 国家的语言吗？`)) return;
+    const old = btn.innerText; 
+    btn.innerText = '翻译中...'; 
+    btn.disabled = true;
+    
     try {
         const res = await fetch('/api/admin/languages/translate-dict', { 
             method: 'POST', 
@@ -183,8 +186,19 @@ async function autoTranslateDict(code, btn) {
             body: JSON.stringify({ targetLang: code }) 
         });
         const data = await res.json(); 
-        if (data.success) { alert('字典已通过 DeepL 翻译成功！'); fetchData(); } else { alert('翻译失败: ' + (data.error || '未知错误')); }
-    } catch(e) { alert('网络请求失败'); } finally { btn.innerText = old; btn.disabled = false; }
+        
+        if (res.ok && data.success) { 
+            alert('字典已通过 DeepL 翻译成功！'); 
+            fetchData(); 
+        } else { 
+            alert('翻译失败: \n' + (data.error || '未知错误，请检查服务器日志')); 
+        }
+    } catch(e) { 
+        alert('网络请求失败: ' + e.message); 
+    } finally { 
+        btn.innerText = old; 
+        btn.disabled = false; 
+    }
 }
 
 function populateFilterOptions() {
@@ -218,7 +232,6 @@ function renderCrawlSourcesList(configs) {
     }
 
     list.innerHTML = configs.map((c, idx) => {
-        // 匹配勾选的翻译语言图标
         const activeLangIcons = (c.targetLangs || []).map(code => {
             const lang = allLangs.find(l => l.code === code);
             return lang ? lang.flag : code;
@@ -282,14 +295,12 @@ async function crawlSingleSource(configId, btnEl) {
     }
 }
 
-// 切换单源独立自动采集
 async function toggleSourceAuto(id, isChecked) {
     await fetch(`/api/admin/crawl/source/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
         body: JSON.stringify({ autoEnabled: isChecked })
     });
-    // 这里为了流畅不刷新整个页面，只更新本地内存
     const target = globalCrawlConfigs.find(c => c.id === id);
     if (target) target.autoEnabled = isChecked;
 }
@@ -768,14 +779,6 @@ async function saveLangDict() {
         document.getElementById('editLangModal').classList.remove('active'); 
         fetchData(); 
     } catch (e) { alert('JSON 格式错误'); }
-}
-async function autoTranslateDict(code) {
-    if(!confirm(`确定要使用真实的 DeepL API 自动覆盖翻译 [${code}] 的菜单字典吗？`)) return;
-    const btn = event.target; const old = btn.innerText; btn.innerText = '请求翻译中...'; btn.disabled = true;
-    try {
-        const res = await fetch('/api/admin/languages/translate-dict', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ targetLang: code }) });
-        const data = await res.json(); if (data.success) { alert('字典已通过 DeepL 翻译成功！'); fetchData(); } else { alert('翻译失败: ' + (data.error || '未知错误')); }
-    } catch(e) { alert('网络请求失败'); } finally { btn.innerText = old; btn.disabled = false; }
 }
 
 async function saveToolDesc() {
