@@ -83,7 +83,7 @@ async function fetchData() {
         document.getElementById('crawlEnabled').checked = crawl.enabled || false;
         document.getElementById('crawlInterval').value = crawl.interval || 30;
         document.getElementById('crawlLimit').value = crawl.limit || 10;
-        globalCrawlConfigs = crawl.configs || []; // 缓存数据
+        globalCrawlConfigs = crawl.configs || []; 
         renderCrawlSourcesList(globalCrawlConfigs);
         renderCrawledArticles(); 
     }
@@ -161,12 +161,18 @@ function renderCrawlSourcesList(configs) {
 
     list.innerHTML = configs.map((c, idx) => `
         <div class="border p-3 rounded mb-2 flex justify-between items-center" style="border-color: var(--cms-border); background: rgba(128,128,128,0.05);">
-            <div>
-                <div class="font-bold text-sm flex items-center gap-2">
-                    <span class="bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded text-[10px]">${c.sourceLang || 'EN'}</span>
-                    ${c.name}
+            <div class="flex items-center gap-3">
+                <!-- 如果有图片则显示，没有则显示占位图 -->
+                ${c.image ? `<img src="${c.image}" class="w-12 h-12 rounded object-cover border" style="border-color: var(--cms-border);" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjZGRkIi8+PC9zdmc+'">` : `<div class="w-12 h-12 rounded bg-gray-200 border flex items-center justify-center text-gray-400" style="border-color: var(--cms-border);"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>`}
+                
+                <div>
+                    <div class="font-bold text-sm flex items-center gap-2">
+                        <span class="bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded text-[10px]">${c.sourceLang || 'EN'}</span>
+                        ${c.name}
+                        <span class="text-xs text-gray-500 font-normal ml-2">条数: ${c.limit || '跟随全局'}</span>
+                    </div>
+                    <div class="text-xs text-gray-500 font-mono mt-1 truncate" style="max-width: 250px;">${c.url}</div>
                 </div>
-                <div class="text-xs text-gray-500 font-mono mt-1 truncate" style="max-width: 250px;">${c.url}</div>
             </div>
             <div class="flex gap-2">
                 <button onclick="editCrawlSource(${idx})" class="text-blue-500 text-xs hover:underline px-2 py-1">编辑</button>
@@ -180,6 +186,8 @@ function openCrawlSourceModal() {
     document.getElementById('crawlSourceId').value = '';
     document.getElementById('crawlSourceName').value = '';
     document.getElementById('crawlSourceUrl').value = '';
+    document.getElementById('crawlSourceImage').value = '';
+    document.getElementById('crawlSourceLimit').value = '';
     document.getElementById('crawlModalTitle').innerText = '添加采集源';
     
     // 渲染源语言下拉
@@ -213,6 +221,8 @@ function editCrawlSource(index) {
     document.getElementById('crawlSourceId').value = c.id;
     document.getElementById('crawlSourceName').value = c.name;
     document.getElementById('crawlSourceUrl').value = c.url;
+    document.getElementById('crawlSourceImage').value = c.image || '';
+    document.getElementById('crawlSourceLimit').value = c.limit || '';
     document.getElementById('crawlModalTitle').innerText = '编辑采集源';
 
     const langSelect = document.getElementById('crawlSourceLang');
@@ -236,6 +246,10 @@ async function saveCrawlSource() {
     const id = document.getElementById('crawlSourceId').value;
     const name = document.getElementById('crawlSourceName').value.trim();
     const url = document.getElementById('crawlSourceUrl').value.trim();
+    const image = document.getElementById('crawlSourceImage').value.trim();
+    const limitStr = document.getElementById('crawlSourceLimit').value;
+    const limit = limitStr ? parseInt(limitStr) : null;
+    
     const sourceLang = document.getElementById('crawlSourceLang').value;
     const targetLangs = Array.from(document.querySelectorAll('.crawl-target-lang-cb:checked')).map(cb => cb.value);
     const mappingStr = document.getElementById('crawlSourceMapping').value;
@@ -245,7 +259,7 @@ async function saveCrawlSource() {
     let mapping;
     try { mapping = JSON.parse(mappingStr); } catch(e) { return alert('JSON 格式错误，请检查语法'); }
 
-    const payload = { name, url, sourceLang, targetLangs, mapping };
+    const payload = { name, url, image, limit, sourceLang, targetLangs, mapping };
     const method = id ? 'PUT' : 'POST';
     const apiUrl = id ? `/api/admin/crawl/source/${id}` : '/api/admin/crawl/source';
 
