@@ -81,7 +81,6 @@ async function translateText(textArray, targetLang, sourceLang = null) {
     const settings = readDB('settings');
     const keys = [settings.deeplKey1, settings.deeplKey2].filter(k => k && k.trim() !== '');
     
-    // 🚨 核心修复：如果没有配置 Key，直接报错阻断，不再静默返回原文本
     if (keys.length === 0) {
         throw new Error('未配置 DeepL API Key，请先前往【系统设置】填写 Key 后再试。');
     }
@@ -90,19 +89,54 @@ async function translateText(textArray, targetLang, sourceLang = null) {
     const isFree = apiKey.endsWith(':fx');
     const url = isFree ? 'https://api-free.deepl.com/v2/translate' : 'https://api.deepl.com/v2/translate';
     
-    // 🚨 核心修复：更完善的国家代码映射
-    let targetCode = targetLang.split('-')[0].toUpperCase();
-    if (targetCode === 'ZH') targetCode = 'ZH-HANS'; // 中文
-    if (targetCode === 'EN') targetCode = 'EN-US';   // 英文
+    // 🚨 智能映射国家代码到 DeepL 支持的语言代码
+    let targetCode = targetLang.split('-')[0].toLowerCase();
+    const langMap = {
+        'jp': 'ja',  // 日本 -> 日语
+        'kr': 'ko',  // 韩国 -> 韩语
+        'cn': 'zh',  // 中国 -> 中文
+        'zh': 'zh',  
+        'us': 'en',  // 美国 -> 英文
+        'en': 'en',
+        'vn': 'vi',  // 越南 -> 越南语
+        'tw': 'zh',  // 台湾 -> 繁体中文
+        'hk': 'zh',  // 香港 -> 繁体中文
+        'ru': 'ru',  // 俄罗斯
+        'fr': 'fr',  // 法国
+        'de': 'de',  // 德国
+        'es': 'es',  // 西班牙
+        'it': 'it',  // 意大利
+        'pt': 'pt',  // 葡萄牙
+        'br': 'pt',  // 巴西
+        'tr': 'tr',  // 土耳其
+        'id': 'id',  // 印尼
+        'th': 'th'   // 泰国
+    };
+    
+    if (langMap[targetCode]) {
+        targetCode = langMap[targetCode];
+    }
+    
+    targetCode = targetCode.toUpperCase();
+    if (targetCode === 'ZH') targetCode = 'ZH-HANS'; // 默认简体中文
+    if (targetCode === 'EN') targetCode = 'EN-US';   // 默认美式英语
 
     const params = new URLSearchParams();
     // 清理文本中的特殊 emoji 或多余符号，防止 DeepL 报错 400
     textArray.forEach(text => {
         let cleanText = (text || '').toString().replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, '').trim();
-        params.append('text', cleanText || ' '); // 防止空字符串报错
+        params.append('text', cleanText || ' '); 
     });
     params.append('target_lang', targetCode);
-    if (sourceLang) params.append('source_lang', sourceLang.toUpperCase());
+    
+    if (sourceLang) {
+        let srcCode = sourceLang.split('-')[0].toLowerCase();
+        if (langMap[srcCode]) srcCode = langMap[srcCode];
+        srcCode = srcCode.toUpperCase();
+        if (srcCode === 'ZH') srcCode = 'ZH';
+        if (srcCode === 'EN') srcCode = 'EN';
+        params.append('source_lang', srcCode);
+    }
     
     try {
         const response = await axios.post(url, params, { headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
@@ -373,7 +407,6 @@ app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
         const keys = Object.keys(BASE_DICT);
         const values = Object.values(BASE_DICT);
         
-        // 让 DeepL 自动识别源语言，翻译成目标国家的语言
         const translatedValues = await translateText(values, targetLang);
         
         const newDict = {};
