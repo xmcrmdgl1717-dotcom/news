@@ -78,7 +78,7 @@ async function fetchData() {
         document.getElementById('categoryList').innerHTML = allCategories.map(c => `<tr><td>${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="openEditCategory('${c.id}')" class="text-blue-500 mr-2">编辑</button><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`).join('');
     }
 
-    // 渲染多语言
+    // 渲染多语言列表
     renderLanguages();
 
     if(document.getElementById('crawlEnabled')) {
@@ -100,7 +100,7 @@ async function fetchData() {
     allArticles.forEach(a => { const gid = a.groupId || a.id; if (!groups[gid]) groups[gid] = []; groups[gid].push(a); });
     let articleHtml = '';
     Object.values(groups).forEach(group => {
-        const main = group.find(a => a.lang === 'zh') || group[0];
+        const main = group.find(a => a.lang === 'zh') || group.find(a => a.lang === 'en') || group[0];
         const otherLangs = group.filter(a => a.lang !== main.lang);
         articleHtml += `
         <div class="border p-3 rounded flex flex-col mb-2" style="border-color: var(--cms-border); background: rgba(128,128,128,0.05);">
@@ -130,7 +130,6 @@ async function fetchData() {
     applyFilters();
 }
 
-// 渲染多语言列表
 function renderLanguages() {
     const tbody = document.getElementById('languageList');
     if (!tbody) return;
@@ -190,7 +189,7 @@ function populateFilterOptions() {
     });
 }
 
-// ================= 多源采集配置管理 =================
+// ================= 🚨 改造后：独立卡片采集源管理 =================
 function renderCrawlSourcesList(configs) {
     const list = document.getElementById('crawlSourceList');
     if (!list) return;
@@ -200,28 +199,67 @@ function renderCrawlSourcesList(configs) {
         return;
     }
 
-    list.innerHTML = configs.map((c, idx) => `
-        <div class="border p-3 rounded mb-2 flex justify-between items-center" style="border-color: var(--cms-border); background: rgba(128,128,128,0.05);">
-            <div class="flex items-center gap-3">
-                ${c.image ? `<img src="${c.image}" class="w-12 h-12 rounded object-cover border" style="border-color: var(--cms-border);" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjZGRkIi8+PC9zdmc+'">` : `<div class="w-12 h-12 rounded bg-gray-200 border flex items-center justify-center text-gray-400" style="border-color: var(--cms-border);"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>`}
-                
-                <div>
-                    <div class="font-bold text-sm flex items-center gap-2">
-                        <span class="bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded text-[10px]">${c.sourceLang || 'EN'}</span>
-                        ${c.name}
-                        <span class="text-xs text-red-500 font-bold ml-2">独立条数: ${c.limit || 10}</span>
+    list.innerHTML = configs.map((c, idx) => {
+        // 匹配勾选的翻译语言图标
+        const activeLangIcons = (c.targetLangs || []).map(code => {
+            const lang = allLangs.find(l => l.code === code);
+            return lang ? lang.flag : code;
+        }).join(' ');
+
+        return `
+        <div class="border p-4 rounded-lg mb-3 flex flex-col gap-3" style="border-color: var(--cms-border); background: rgba(128,128,128,0.05);">
+            <div class="flex justify-between items-start">
+                <div class="flex gap-3">
+                    ${c.image ? `<img src="${c.image}" class="w-10 h-10 rounded object-cover border" style="border-color: var(--cms-border);" onerror="this.src='data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0OCIgaGVpZ2h0PSI0OCI+PHJlY3Qgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4IiBmaWxsPSIjZGRkIi8+PC9zdmc+'">` : `<div class="w-10 h-10 rounded bg-gray-200 border flex items-center justify-center text-gray-400" style="border-color: var(--cms-border);"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg></div>`}
+                    <div>
+                        <div class="font-bold text-sm flex items-center gap-2">
+                            ${c.name}
+                            <span class="text-xs text-red-500 font-bold bg-red-50 px-1.5 rounded">独立条数: ${c.limit || 10}</span>
+                        </div>
+                        <div class="text-xs text-gray-500 font-mono mt-1 truncate" style="max-width: 250px;">${c.url}</div>
+                        <div class="text-xs text-blue-500 font-bold mt-1">翻译目标: ${activeLangIcons || '未配置'}</div>
                     </div>
-                    <div class="text-xs text-gray-500 font-mono mt-1 truncate" style="max-width: 250px;">${c.url}</div>
                 </div>
             </div>
-            <div class="flex gap-2">
-                <button onclick="editCrawlSource(${idx})" class="text-blue-500 text-xs hover:underline px-2 py-1">编辑</button>
-                <button onclick="deleteCrawlSource(${idx})" class="text-red-500 text-xs hover:underline px-2 py-1">删除</button>
+            <!-- 底部的操作按钮 -->
+            <div class="flex justify-end gap-2 border-t pt-2 mt-1" style="border-color: var(--cms-border);">
+                <button onclick="crawlSingleSource('${c.id}', this)" class="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1 rounded text-xs font-bold transition">▶ 立刻采集此源</button>
+                <button onclick="editCrawlSource(${idx})" class="text-blue-500 hover:bg-blue-50 px-3 py-1 rounded text-xs transition">编辑配置</button>
+                <button onclick="deleteCrawlSource(${idx})" class="text-red-500 hover:bg-red-50 px-3 py-1 rounded text-xs transition">删除</button>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
+// 单独采集某个源
+async function crawlSingleSource(configId, btnEl) {
+    const oldText = btnEl.innerText;
+    btnEl.innerText = '采集中...';
+    btnEl.disabled = true;
+
+    try {
+        const res = await fetch('/api/admin/crawl/now', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+            body: JSON.stringify({ configId })
+        });
+        const data = await res.json();
+        if (data.success) {
+            alert(`该源采集成功！新增 ${data.count} 篇 ${data.failCount > 0 ? `(其中 ${data.failCount} 篇翻译失败)` : ''}`);
+            fetchData(); 
+        } else {
+            alert('采集失败: ' + (data.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('网络错误: ' + e.message);
+    } finally {
+        btnEl.innerText = oldText;
+        btnEl.disabled = false;
+    }
+}
+
+// 添加/编辑弹窗 (去掉了源语言下拉，确保读取了 allLangs)
 function openCrawlSourceModal() {
     document.getElementById('crawlSourceId').value = '';
     document.getElementById('crawlSourceName').value = '';
@@ -230,9 +268,6 @@ function openCrawlSourceModal() {
     document.getElementById('crawlSourceLimit').value = '10';
     document.getElementById('crawlModalTitle').innerText = '添加采集源';
     
-    const langSelect = document.getElementById('crawlSourceLang');
-    langSelect.innerHTML = allLangs.filter(l=>l.active).map(l => `<option value="${l.code.toUpperCase()}">${l.name}</option>`).join('');
-
     document.getElementById('crawlTargetLangCheckboxes').innerHTML = allLangs.filter(l=>l.active).map(l => `
         <label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition">
             <input type="checkbox" value="${l.code}" class="crawl-target-lang-cb accent-blue-600 dark:accent-[#f0b90b]"> ${l.flag} ${l.name}
@@ -257,10 +292,6 @@ function editCrawlSource(index) {
     document.getElementById('crawlSourceLimit').value = c.limit || 10;
     document.getElementById('crawlModalTitle').innerText = '编辑采集源';
 
-    const langSelect = document.getElementById('crawlSourceLang');
-    langSelect.innerHTML = allLangs.filter(l=>l.active).map(l => `<option value="${l.code.toUpperCase()}">${l.name}</option>`).join('');
-    langSelect.value = c.sourceLang || 'EN';
-
     document.getElementById('crawlTargetLangCheckboxes').innerHTML = allLangs.filter(l=>l.active).map(l => {
         const isChecked = (c.targetLangs || []).includes(l.code) ? 'checked' : '';
         return `
@@ -280,7 +311,8 @@ async function saveCrawlSource() {
     const url = document.getElementById('crawlSourceUrl').value.trim();
     const image = document.getElementById('crawlSourceImage').value.trim();
     const limit = parseInt(document.getElementById('crawlSourceLimit').value) || 10;
-    const sourceLang = document.getElementById('crawlSourceLang').value;
+    
+    // 不再有源语言
     const targetLangs = Array.from(document.querySelectorAll('.crawl-target-lang-cb:checked')).map(cb => cb.value);
     const mappingStr = document.getElementById('crawlSourceMapping').value;
 
@@ -289,7 +321,7 @@ async function saveCrawlSource() {
     let mapping;
     try { mapping = JSON.parse(mappingStr); } catch(e) { return alert('JSON 格式错误，请检查语法'); }
 
-    const payload = { name, url, image, limit, sourceLang, targetLangs, mapping };
+    const payload = { name, url, image, limit, targetLangs, mapping };
     const method = id ? 'PUT' : 'POST';
     const apiUrl = id ? `/api/admin/crawl/source/${id}` : '/api/admin/crawl/source';
 
@@ -304,7 +336,7 @@ async function saveCrawlSource() {
             document.getElementById('crawlSourceModal').classList.remove('active');
             fetchData();
         } else {
-            alert('保存失败！请检查服务器日志。');
+            alert('保存失败！');
         }
     } catch (e) {
         alert('网络或服务器错误: ' + e.message);
@@ -331,33 +363,12 @@ async function saveCrawlConfig() {
     fetchData();
 }
 
-async function crawlNow() {
-    const btn = document.getElementById('btnCrawlNow');
-    const old = btn.innerText;
-    btn.innerText = '采集中...'; btn.disabled = true;
-
-    try {
-        const res = await fetch('/api/admin/crawl/now', { method: 'POST', headers: { 'x-admin-pwd': adminPwd } });
-        const data = await res.json();
-        if (data.success) {
-            alert(`成功采集 ${data.count} 篇文章 ${data.failCount > 0 ? `(其中 ${data.failCount} 篇翻译失败)` : ''}`);
-            fetchData(); 
-        } else {
-            alert('采集失败: ' + (data.error || '未知错误'));
-        }
-    } catch (e) {
-        alert('网络或服务器错误: ' + e.message);
-    } finally {
-        btn.innerText = old; btn.disabled = false;
-    }
-}
-
 function renderCrawledArticles() {
     const list = document.getElementById('crawledArticleList');
     if (!list) return;
 
     const filterDate = document.getElementById('crawlFilterDate')?.value;
-    let articles = allArticles.filter(a => a.lang === 'en' || a.lang === 'zh'); 
+    let articles = allArticles.filter(a => a.lang === 'en' || a.lang === 'zh' || a.lang === 'original'); 
 
     if (filterDate) {
         articles = articles.filter(a => a.time.startsWith(filterDate));
@@ -373,7 +384,7 @@ function renderCrawledArticles() {
 
     let html = '';
     Object.values(groups).forEach(group => {
-        const main = group.find(a => a.lang === 'en') || group[0];
+        const main = group.find(a => a.lang === 'original') || group.find(a => a.lang === 'en') || group[0];
         const allGroupLangs = allArticles.filter(a => a.groupId === main.groupId);
         const otherLangs = allGroupLangs.filter(a => a.lang !== main.lang);
 
@@ -398,7 +409,7 @@ function renderCrawledArticles() {
             </details>` : ''}
         </div>`;
     });
-    list.innerHTML = html || '<div class="text-center py-4 text-gray-500">暂无采集数据，请点击左侧“立刻采集”</div>';
+    list.innerHTML = html || '<div class="text-center py-4 text-gray-500">暂无采集数据</div>';
 }
 
 // ================= 数据汇总相关 =================
@@ -630,18 +641,21 @@ async function deleteSource(index) {
 function editArticleGroup(groupId) {
     const group = allArticles.filter(a => a.groupId === groupId || a.id === groupId);
     if (!group || group.length === 0) return;
-    const main = group.find(a => a.lang === 'zh') || group[0]; const existingLangs = group.map(a => a.lang); 
+    const main = group.find(a => a.lang === 'zh') || group.find(a => a.lang === 'en') || group[0]; const existingLangs = group.map(a => a.lang); 
     document.getElementById('editArticleGroupId').value = groupId;
     document.getElementById('editArtType').value = main.type;
     document.getElementById('editArtTitle').value = main.title;
     document.getElementById('editArtSummary').value = main.summary;
     document.getElementById('editArtCoverUrl').value = main.coverUrl || '';
     editQuill.root.innerHTML = main.content || '';
+    
+    // 编辑文章的多语言，只渲染后台启用的语言
     document.getElementById('editArticleLangCheckboxes').innerHTML = allLangs.filter(l => l.active).map(l => {
         const isTranslated = existingLangs.includes(l.code); const disabled = l.code === 'zh' ? 'disabled' : ''; const checked = (l.code === 'zh' || isTranslated) ? 'checked' : '';
         const badge = isTranslated ? `<span class="text-green-500 text-[10px] bg-green-100 px-1.5 py-0.5 rounded">已翻译</span>` : `<span class="text-red-500 text-[10px] bg-red-100 px-1.5 py-0.5 rounded">未翻译</span>`;
         return `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition"><input type="checkbox" value="${l.code}" class="edit-article-lang-cb accent-blue-600 dark:accent-[#f0b90b]" ${checked} ${disabled}> ${l.flag} ${l.name} ${badge}</label>`;
     }).join('');
+    
     document.getElementById('editArticleModal').classList.add('active');
 }
 function closeEditModal() { document.getElementById('editArticleModal').classList.remove('active'); document.getElementById('editArticleGroupId').value = ''; }
