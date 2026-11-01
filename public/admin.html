@@ -405,6 +405,27 @@
 
                     <h3 class="font-bold text-lg mb-4">工具与检测配置</h3>
                     <div class="space-y-4 mb-6 border-b pb-4" style="border-color: var(--cms-border);">
+                        <!-- 1. 工具标题 -->
+                        <div>
+                            <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">检测窗标题 (源语言：中文)</label>
+                            <input type="text" id="toolTitleZh" class="input mb-2" placeholder="如：免费检测地址是否安全">
+                        </div>
+                        <div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);">
+                            <p class="text-sm font-bold mb-2" style="color: var(--cms-text-muted);">发布翻译语言：</p>
+                            <div id="toolTitleLangCheckboxes"></div>
+                        </div>
+
+                        <!-- 2. 输入框 Placeholder -->
+                        <div>
+                            <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">检测窗输入提示 (源语言：中文)</label>
+                            <input type="text" id="toolPlaceholderZh" class="input mb-2" placeholder="如：输入任何链上地址...">
+                        </div>
+                        <div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);">
+                            <p class="text-sm font-bold mb-2" style="color: var(--cms-text-muted);">发布翻译语言：</p>
+                            <div id="toolPlaceholderLangCheckboxes"></div>
+                        </div>
+
+                        <!-- 3. 描述文本 -->
                         <div>
                             <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">检测窗描述文本 (源语言：中文)</label>
                             <p class="text-xs text-blue-500 mb-2">输入内容后，勾选需要翻译并发布的语言。</p>
@@ -416,7 +437,8 @@
                             </div>
                             <div id="toolDescLangCheckboxes"></div>
                         </div>
-                        <button onclick="saveToolDesc()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;">翻译并保存描述</button>
+                        
+                        <button onclick="saveToolConfig()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;">翻译并保存工具配置</button>
                     </div>
 
                     <!-- 地址校验开关，放在检测等待时间上方 -->
