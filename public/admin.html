@@ -36,7 +36,8 @@
 </head>
 <body class="h-screen flex overflow-hidden">
 
-    <div id="loginOverlay" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm">
+    <!-- 修复登录闪烁：默认隐藏，由底部脚本决定是否显示 -->
+    <div id="loginOverlay" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm" style="display: none;">
         <div class="card p-8 w-96 text-center">
             <h2 class="text-2xl font-bold mb-6" style="color: var(--cms-accent);">ChainSafe CMS</h2>
             <input type="password" id="adminPwd" placeholder="请输入后台密码" class="input mb-4 p-3">
@@ -187,7 +188,6 @@
             <!-- 文章采集 -->
             <div id="tab-crawl" class="content-section">
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <!-- 左侧配置区 -->
                     <div class="card p-6 h-fit">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="font-bold text-lg text-blue-600">采集源管理</h3>
@@ -207,7 +207,6 @@
                                 <input type="number" id="crawlInterval" class="input w-20 p-1 text-sm" value="30" min="5">
                                 <span class="text-sm">分钟采集一次</span>
                             </div>
-                            <!-- 删除了全局条数输入框 -->
                         </div>
                         <div class="flex gap-2">
                             <button onclick="saveCrawlConfig()" class="px-6 py-2 rounded font-bold text-white bg-blue-600 hover:bg-blue-700">保存自动采集设置</button>
@@ -215,7 +214,6 @@
                         </div>
                     </div>
 
-                    <!-- 右侧列表区 -->
                     <div class="card p-6 overflow-y-auto" style="max-height: calc(100vh - 150px);">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="font-bold text-lg text-gray-800">已采集文章</h3>
@@ -428,6 +426,12 @@
         </div>
     </div>
 
+    <!-- 防闪烁判断 -->
+    <script>
+        if (!sessionStorage.getItem('wad_admin_pwd')) {
+            document.getElementById('loginOverlay').style.display = 'flex';
+        }
+    </script>
     <script src="/js/admin.js"></script>
 </body>
 </html>
