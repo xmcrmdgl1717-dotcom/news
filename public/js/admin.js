@@ -68,9 +68,12 @@ async function fetchData() {
     if (res.status === 403) return logout();
     const data = await res.json();
     
-    allArticles = data.articles || []; allLangs = data.languages || []; allCategories = data.categories || [];
+    allArticles = data.articles || []; 
+    allLangs = data.languages || []; 
+    allCategories = data.categories || [];
     globalTrackingConfig = data.tracking || { interval: 0, maxLogs: 100, sources: [], logs: [] };
-    globalSettings = data.settings || {}; globalVisits = data.visits || [];
+    globalSettings = data.settings || {}; 
+    globalVisits = data.visits || [];
     const crawl = data.crawl || {};
 
     if(document.getElementById('artType')) document.getElementById('artType').innerHTML = allCategories.map(c => `<option value="${c.id}">${c.name_zh}</option>`).join('');
@@ -78,7 +81,19 @@ async function fetchData() {
         document.getElementById('categoryList').innerHTML = allCategories.map(c => `<tr><td>${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="openEditCategory('${c.id}')" class="text-blue-500 mr-2">编辑</button><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`).join('');
     }
 
-    // 渲染多语言列表（含一键翻译按钮）
+    // 🚨 关键修复 1：渲染所有需要的多语言复选框
+    renderLangCheckboxes();
+
+    // 🚨 关键修复 2：回填系统设置的数据
+    if(document.getElementById('toolDescZh')) {
+        document.getElementById('toolDescZh').value = (globalSettings.toolDesc && globalSettings.toolDesc.zh) ? globalSettings.toolDesc.zh : '';
+        document.getElementById('checkWaitTime').value = globalSettings.checkWaitTime || 5;
+        document.getElementById('deeplKey1').value = globalSettings.deeplKey1 || '';
+        document.getElementById('deeplKey2').value = globalSettings.deeplKey2 || '';
+        document.getElementById('autoLangSwitch').checked = globalSettings.autoLang !== false;
+    }
+
+    // 渲染多语言管理列表
     renderLanguages();
 
     if(document.getElementById('crawlEnabled')) {
@@ -130,7 +145,32 @@ async function fetchData() {
     applyFilters();
 }
 
-// 🚨 多语言列表渲染，包含一键翻译
+// 🚨 新增函数：统一渲染文章发布和系统设置里的多语言复选框
+function renderLangCheckboxes() {
+    const activeLangs = allLangs.filter(l => l.active);
+    
+    // 1. 文章管理 -> 发布语言
+    const artLangsDiv = document.getElementById('articleLangCheckboxes');
+    if (artLangsDiv) {
+        artLangsDiv.innerHTML = activeLangs.map(l => `
+            <label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition">
+                <input type="checkbox" value="${l.code}" class="accent-blue-600 dark:accent-[#f0b90b]"> ${l.flag} ${l.name}
+            </label>
+        `).join('');
+    }
+
+    // 2. 系统设置 -> 检测窗描述发布语言
+    const toolLangsDiv = document.getElementById('toolDescLangCheckboxes');
+    if (toolLangsDiv) {
+        toolLangsDiv.innerHTML = activeLangs.map(l => `
+            <label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition">
+                <input type="checkbox" value="${l.code}" class="tool-desc-lang-cb accent-blue-600 dark:accent-[#f0b90b]"> ${l.flag} ${l.name}
+            </label>
+        `).join('');
+    }
+}
+
+// 多语言管理列表渲染
 function renderLanguages() {
     const tbody = document.getElementById('languageList');
     if (!tbody) return;
@@ -146,7 +186,6 @@ function renderLanguages() {
             </td>
             <td class="p-3 flex gap-2">
                 <button onclick="openEditLang('${l.code}')" class="text-blue-500 text-sm hover:underline">编辑字典</button>
-                <!-- 一键翻译按钮 -->
                 <button onclick="autoTranslateDict('${l.code}', this)" class="text-orange-500 text-sm hover:underline">一键翻译</button>
                 <button onclick="deleteLanguage('${l.code}')" class="text-red-500 text-sm hover:underline">删除</button>
             </td>
@@ -172,7 +211,6 @@ async function deleteLanguage(code) {
     fetchData();
 }
 
-// 🚨 多语言字典一键翻译（完善错误提示）
 async function autoTranslateDict(code, btn) {
     if(!confirm(`确定要使用 DeepL API 将基础字典翻译成 [${code}] 国家的语言吗？`)) return;
     const old = btn.innerText; 
@@ -250,7 +288,6 @@ function renderCrawlSourcesList(configs) {
                         <div class="text-xs text-gray-500 font-mono mt-1 truncate" style="max-width: 250px;">${c.url}</div>
                         <div class="text-xs text-blue-500 font-bold mt-1">翻译目标: ${activeLangIcons || '未配置'}</div>
                         
-                        <!-- 单个源的自动采集开关 -->
                         <label class="flex items-center gap-1 mt-2 cursor-pointer">
                             <input type="checkbox" onchange="toggleSourceAuto('${c.id}', this.checked)" ${c.autoEnabled ? 'checked' : ''} class="w-4 h-4 accent-blue-600 cursor-pointer">
                             <span class="text-xs text-gray-600 dark:text-gray-400">独立自动采集</span>
@@ -258,7 +295,6 @@ function renderCrawlSourcesList(configs) {
                     </div>
                 </div>
             </div>
-            <!-- 底部的操作按钮 -->
             <div class="flex justify-end gap-2 border-t pt-2 mt-1" style="border-color: var(--cms-border);">
                 <button onclick="crawlSingleSource('${c.id}', this)" class="bg-green-100 text-green-700 hover:bg-green-200 px-3 py-1 rounded text-xs font-bold transition">▶ 立刻采集此源</button>
                 <button onclick="editCrawlSource(${idx})" class="text-blue-500 hover:bg-blue-50 px-3 py-1 rounded text-xs transition">编辑配置</button>
@@ -723,7 +759,10 @@ async function submitArticle() {
     const summary = document.getElementById('artSummary').value; const coverUrl = document.getElementById('artCoverUrl').value;
     const content = quill.root.innerHTML;
     if (!title) return alert('请输入标题');
+    
     const checkedLangs = Array.from(document.querySelectorAll('#articleLangCheckboxes input:checked')).map(cb => cb.value);
+    if(checkedLangs.length === 0) return alert('请至少勾选一种发布语言！');
+
     const btn = document.getElementById('articleSubmitBtn'); const old = btn.innerText; btn.innerText = '翻译并发布中...'; btn.disabled = true;
     try {
         const res = await fetch('/api/admin/article/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ title, summary, content, targetLangs: checkedLangs, type, coverUrl }) });
@@ -784,6 +823,8 @@ async function saveLangDict() {
 async function saveToolDesc() {
     const toolDescZh = document.getElementById('toolDescZh').value; if (!toolDescZh) return alert('请输入中文描述文本');
     const checkedLangs = Array.from(document.querySelectorAll('.tool-desc-lang-cb:checked')).map(cb => cb.value);
+    if (checkedLangs.length === 0) return alert('请至少勾选一种翻译目标语言！');
+    
     const btn = event.target; const old = btn.innerText; btn.innerText = '翻译并保存中...'; btn.disabled = true;
     try {
         const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ toolDescZh, targetLangs: checkedLangs }) });
