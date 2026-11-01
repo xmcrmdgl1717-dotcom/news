@@ -18,7 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.documentElement.classList.add(t);
     
     if (sessionStorage.getItem('wad_admin_pwd')) {
-        document.getElementById('loginOverlay').style.display = 'none'; 
         fetchData();
     }
     if(document.getElementById('editor-container')) quill = new Quill('#editor-container', { theme: 'snow', modules: { toolbar: [ [{ header: [1, 2, false] }], ['bold', 'italic', 'underline'], ['image'], ['clean'] ] } });
@@ -79,6 +78,9 @@ async function fetchData() {
         document.getElementById('categoryList').innerHTML = allCategories.map(c => `<tr><td>${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="openEditCategory('${c.id}')" class="text-blue-500 mr-2">编辑</button><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`).join('');
     }
 
+    // 渲染多语言
+    renderLanguages();
+
     if(document.getElementById('crawlEnabled')) {
         document.getElementById('crawlEnabled').checked = crawl.enabled || false;
         document.getElementById('crawlInterval').value = crawl.interval || 30;
@@ -126,6 +128,46 @@ async function fetchData() {
     populateFilterOptions();
     calculateStats();
     applyFilters();
+}
+
+// 渲染多语言列表
+function renderLanguages() {
+    const tbody = document.getElementById('languageList');
+    if (!tbody) return;
+
+    tbody.innerHTML = allLangs.map(l => `
+        <tr class="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
+            <td class="p-3 font-mono">${l.code}</td>
+            <td class="p-3 font-bold">${l.flag || ''} ${l.name}</td>
+            <td class="p-3">
+                <button onclick="toggleLangStatus('${l.code}', ${l.active})" class="px-2 py-1 rounded text-xs font-bold transition ${l.active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}">
+                    ${l.active ? '已启用' : '已禁用'}
+                </button>
+            </td>
+            <td class="p-3">
+                <button onclick="openEditLang('${l.code}')" class="text-blue-500 text-sm hover:underline mr-3">编辑字典</button>
+                <button onclick="deleteLanguage('${l.code}')" class="text-red-500 text-sm hover:underline">删除</button>
+            </td>
+        </tr>
+    `).join('') || `<tr><td colspan="4" class="text-center py-6 text-gray-500">暂无语言</td></tr>`;
+}
+
+async function toggleLangStatus(code, currentActive) {
+    const targetLang = allLangs.find(l => l.code === code);
+    if (!targetLang) return;
+    
+    await fetch(`/api/admin/languages/${code}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+        body: JSON.stringify({ active: !currentActive }) 
+    });
+    fetchData(); 
+}
+
+async function deleteLanguage(code) {
+    if (!confirm('确认删除该语言？删除后该语言的文章和字典将无法访问。')) return;
+    await fetch(`/api/admin/languages/${code}`, { method: 'DELETE', headers: { 'x-admin-pwd': adminPwd } });
+    fetchData();
 }
 
 function populateFilterOptions() {
@@ -185,7 +227,7 @@ function openCrawlSourceModal() {
     document.getElementById('crawlSourceName').value = '';
     document.getElementById('crawlSourceUrl').value = '';
     document.getElementById('crawlSourceImage').value = '';
-    document.getElementById('crawlSourceLimit').value = '10'; // 默认10
+    document.getElementById('crawlSourceLimit').value = '10';
     document.getElementById('crawlModalTitle').innerText = '添加采集源';
     
     const langSelect = document.getElementById('crawlSourceLang');
@@ -198,12 +240,7 @@ function openCrawlSourceModal() {
     `).join('');
 
     document.getElementById('crawlSourceMapping').value = JSON.stringify({
-        "title": "title",
-        "summary": "description",
-        "content": "description",
-        "author": "author",
-        "time": "pubDate",
-        "type": "hack"
+        "title": "title", "summary": "description", "content": "description", "author": "author", "time": "pubDate", "type": "hack"
     }, null, 2);
 
     document.getElementById('crawlSourceModal').classList.add('active');
@@ -267,8 +304,7 @@ async function saveCrawlSource() {
             document.getElementById('crawlSourceModal').classList.remove('active');
             fetchData();
         } else {
-            const errorText = await res.text();
-            alert(`保存失败！状态码: ${res.status}。请确保服务器已更新并重启。\n${errorText}`);
+            alert('保存失败！请检查服务器日志。');
         }
     } catch (e) {
         alert('网络或服务器错误: ' + e.message);
@@ -285,7 +321,7 @@ async function deleteCrawlSource(index) {
 async function saveCrawlConfig() {
     const enabled = document.getElementById('crawlEnabled').checked;
     const interval = document.getElementById('crawlInterval').value;
-    // 不再有全局 limit
+    
     await fetch('/api/admin/crawl', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
@@ -676,7 +712,16 @@ function openEditLang(code) {
 }
 async function saveLangDict() {
     const code = document.getElementById('editLangCode').value;
-    try { const dict = JSON.parse(document.getElementById('editLangDict').value); await fetch(`/api/admin/languages/${code}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ dict }) }); document.getElementById('editLangModal').classList.remove('active'); fetchData(); } catch (e) { alert('JSON 格式错误'); }
+    try { 
+        const dict = JSON.parse(document.getElementById('editLangDict').value); 
+        await fetch(`/api/admin/languages/${code}`, { 
+            method: 'PUT', 
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
+            body: JSON.stringify({ dict }) 
+        }); 
+        document.getElementById('editLangModal').classList.remove('active'); 
+        fetchData(); 
+    } catch (e) { alert('JSON 格式错误'); }
 }
 async function autoTranslateDict(code) {
     if(!confirm(`确定要使用真实的 DeepL API 自动覆盖翻译 [${code}] 的菜单字典吗？`)) return;
