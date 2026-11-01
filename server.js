@@ -7,7 +7,7 @@ const axios = require('axios');
 const { XMLParser } = require('fast-xml-parser');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3100;
 const DB_DIR = path.join(__dirname, 'db');
 const UPLOAD_DIR = path.join(__dirname, 'public', 'uploads');
 
