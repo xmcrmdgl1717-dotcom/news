@@ -193,7 +193,7 @@
                             <h3 class="font-bold text-lg text-blue-600">采集源管理</h3>
                             <button onclick="openCrawlSourceModal()" class="px-3 py-1.5 bg-blue-100 text-blue-700 text-sm font-bold rounded hover:bg-blue-200">➕ 添加采集源</button>
                         </div>
-                        <p class="text-xs text-gray-500 mb-4">支持添加多个不同站点的 RSS/JSON 源，系统会自动处理并翻译。每个源可单独设置条数和封面。</p>
+                        <p class="text-xs text-gray-500 mb-4">支持添加多个不同站点的 RSS/JSON 源，系统会自动处理并翻译。每个源完全独立配置条数和封面。</p>
                         
                         <div class="space-y-3 mb-6" id="crawlSourceList"></div>
 
@@ -207,14 +207,10 @@
                                 <input type="number" id="crawlInterval" class="input w-20 p-1 text-sm" value="30" min="5">
                                 <span class="text-sm">分钟采集一次</span>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <span class="text-sm">默认每源获取</span>
-                                <input type="number" id="crawlLimit" class="input w-20 p-1 text-sm" value="10" min="1">
-                                <span class="text-sm">条</span>
-                            </div>
+                            <!-- 删除了全局条数输入框 -->
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="saveCrawlConfig()" class="px-6 py-2 rounded font-bold text-white bg-blue-600 hover:bg-blue-700">保存全局设置</button>
+                            <button onclick="saveCrawlConfig()" class="px-6 py-2 rounded font-bold text-white bg-blue-600 hover:bg-blue-700">保存自动采集设置</button>
                             <button onclick="crawlNow()" id="btnCrawlNow" class="px-6 py-2 rounded font-bold text-white bg-green-600 hover:bg-green-700">立刻执行采集</button>
                         </div>
                     </div>
@@ -406,8 +402,8 @@
                         <input type="text" id="crawlSourceUrl" class="input" placeholder="https://...">
                     </div>
                     <div>
-                        <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">单独获取条数</label>
-                        <input type="number" id="crawlSourceLimit" class="input" placeholder="留空使用全局" min="1" value="">
+                        <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">独立获取条数</label>
+                        <input type="number" id="crawlSourceLimit" class="input" placeholder="必须填" min="1" value="10">
                     </div>
                 </div>
                 <div>
