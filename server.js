@@ -47,7 +47,6 @@ Object.keys(DB_FILES).forEach(key => {
         if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }];
         if (key === 'tracking') initialData = { interval: 1, maxLogs: 100, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }], logs: [], lastFetchTime: 0 };
         if (key === 'visits') initialData = []; 
-        // 核心修改：采集配置改为数组结构支持多源
         if (key === 'crawl') initialData = { 
             enabled: false, interval: 30, limit: 10, lastCrawlTime: 0,
             configs: [
@@ -57,6 +56,8 @@ Object.keys(DB_FILES).forEach(key => {
                     sourceLang: "EN",
                     targetLangs: ["zh"],
                     url: "https://cointelegraph.com/rss",
+                    image: "",
+                    limit: 5,
                     mapping: {
                         "title": "title",
                         "summary": "description",
@@ -72,7 +73,7 @@ Object.keys(DB_FILES).forEach(key => {
     }
 });
 
-// 兼容老版本数据（如果发现老版本的 codeConfig 则自动转换）
+// 兼容旧版本数据（如果发现老版本的 codeConfig 则自动转换）
 let crawlDataCheck = JSON.parse(fs.readFileSync(DB_FILES.crawl));
 if (crawlDataCheck.codeConfig && !crawlDataCheck.configs) {
     try {
@@ -83,11 +84,17 @@ if (crawlDataCheck.codeConfig && !crawlDataCheck.configs) {
             sourceLang: "EN",
             targetLangs: ["zh"],
             url: oldConfig.url,
+            limit: 10,
+            image: "",
             mapping: oldConfig.mapping
         }];
         delete crawlDataCheck.codeConfig;
         fs.writeFileSync(DB_FILES.crawl, JSON.stringify(crawlDataCheck, null, 2));
     } catch (e) {}
+}
+if (!crawlDataCheck.configs) {
+    crawlDataCheck.configs = [];
+    fs.writeFileSync(DB_FILES.crawl, JSON.stringify(crawlDataCheck, null, 2));
 }
 
 const readDB = (key) => JSON.parse(fs.readFileSync(DB_FILES[key]));
@@ -154,7 +161,7 @@ async function fetchAndTranslateTracking() {
     } catch (e) { console.error('追踪生成失败', e); }
 }
 
-// 2. 真实文章采集 (支持多源、JSON/RSS 自动识别、按需翻译)
+// 2. 真实文章采集 (支持多源、独立条数、JSON/RSS 自动识别、按需翻译)
 async function crawlNews(isManual = false) {
     let config = readDB('crawl');
     const now = Date.now();
@@ -199,11 +206,13 @@ async function crawlNews(isManual = false) {
             if (!Array.isArray(rawList)) continue;
 
             let count = 0;
+            // 核心修复：使用独立源配置的 limit，如果没有则使用全局 limit，默认为 10
+            const currentLimit = cfg.limit ? Number(cfg.limit) : (Number(config.limit) || 10);
             const sourceLangUpper = (cfg.sourceLang || 'EN').toUpperCase();
             const sourceLangLower = sourceLangUpper.toLowerCase();
 
             for (let item of rawList) {
-                if (count >= config.limit) break;
+                if (count >= currentLimit) break;
 
                 const getField = (obj, pathStr) => {
                     if (!pathStr) return null;
@@ -221,11 +230,12 @@ async function crawlNews(isManual = false) {
                 if (!title || existingTitles.has(title)) continue; 
 
                 let summary = getField(item, cfg.mapping.summary) || '';
-                summary = summary.replace(/<[^>]*>?/gm, ''); // 清理 HTML 标签
+                summary = summary.replace(/<[^>]*>?/gm, ''); 
                 
                 let content = getField(item, cfg.mapping.content) || `<p>${summary}</p>`;
-                let coverUrl = getField(item, cfg.mapping.coverUrl) || 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80';
-                let author = getField(item, cfg.mapping.author) || 'Crypto News';
+                // 如果源配置了默认图片则用源配置，否则用文章提取图，再没有用默认图
+                let coverUrl = getField(item, cfg.mapping.coverUrl) || cfg.image || 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80';
+                let author = getField(item, cfg.mapping.author) || cfg.name || 'Crypto News';
                 let type = getField(item, cfg.mapping.type) || 'hack'; 
                 let pubDate = getField(item, cfg.mapping.time) || new Date().toISOString();
                 
@@ -238,7 +248,7 @@ async function crawlNews(isManual = false) {
                 // 2. 存入目标翻译语种
                 const targetLangs = cfg.targetLangs || [];
                 for (let l of targetLangs) {
-                    if (l === sourceLangLower) continue; // 跳过同语种
+                    if (l === sourceLangLower) continue; 
                     try {
                         const tTitle = await translateText([title], l, sourceLangUpper);
                         const tSummary = await translateText([summary], l, sourceLangUpper);
@@ -359,7 +369,7 @@ app.put('/api/admin/crawl', auth, (req, res) => {
     writeDB('crawl', crawl); res.json({ success: true });
 });
 
-// 新增：采集源 CRUD API
+// 采集源 CRUD API
 app.post('/api/admin/crawl/source', auth, (req, res) => {
     let crawl = readDB('crawl');
     if (!crawl.configs) crawl.configs = [];
