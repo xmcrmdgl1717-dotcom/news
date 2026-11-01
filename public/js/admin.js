@@ -19,7 +19,6 @@ let articlePageSize = 50;
 let crawledCurrentPage = 1;
 let crawledPageSize = 50;
 
-// 严格过滤后，DeepL 支持的语言及常用映射
 const COMMON_LANGUAGES = [
     { name: '简体中文', code: 'zh', flag: '🇨🇳', desc: 'ISO标准代码', iso: 'zh' },
     { name: 'English', code: 'en', flag: '🇺🇸', desc: 'ISO标准代码', iso: 'en' },
@@ -507,9 +506,26 @@ function ensureCrawlImageUploader() {
 
 function openCrawlSourceModal() {
     ensureCrawlImageUploader();
-    document.getElementById('crawlSourceId').value = ''; document.getElementById('crawlSourceName').value = ''; document.getElementById('crawlSourceUrl').value = ''; document.getElementById('crawlSourceImage').value = ''; document.getElementById('crawlSourceLimit').value = '10'; document.getElementById('crawlModalTitle').innerText = '添加采集源';
+    document.getElementById('crawlSourceId').value = ''; 
+    document.getElementById('crawlSourceName').value = ''; 
+    document.getElementById('crawlSourceUrl').value = ''; 
+    document.getElementById('crawlSourceImage').value = ''; 
+    document.getElementById('crawlSourceLimit').value = '10'; 
+    document.getElementById('crawlModalTitle').innerText = '添加采集源';
+    
     document.getElementById('crawlTargetLangCheckboxes').innerHTML = allLangs.filter(l=>l.active).map(l => `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 transition"><input type="checkbox" value="${l.code}" class="crawl-target-lang-cb accent-blue-600"> ${l.flag} ${l.name}</label>`).join('');
-    document.getElementById('crawlSourceMapping').value = JSON.stringify({ "title": "title", "summary": "description", "content": "description", "author": "author", "time": "pubDate", "type": "hack" }, null, 2);
+    
+    // 【修改这里】默认加入 coverUrl 自动提取规则
+    document.getElementById('crawlSourceMapping').value = JSON.stringify({ 
+        "title": "title", 
+        "summary": "description", 
+        "content": "content:encoded", 
+        "author": "author", 
+        "time": "pubDate", 
+        "type": "hack",
+        "coverUrl": "enclosure.url" 
+    }, null, 2);
+    
     document.getElementById('crawlSourceModal').classList.add('active');
 }
 
@@ -985,7 +1001,6 @@ async function saveToolDesc() {
         const body = { toolDescZh, targetLangs: checkedLangs };
         const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify(body) });
         if (res.ok) {
-            // 本地立即更新，避免用户误以为没生效
             if (!globalSettings.toolDesc) globalSettings.toolDesc = {};
             globalSettings.toolDesc.zh = toolDescZh;
             alert('描述已保存！' + (checkedLangs.length ? '并完成翻译。' : '（未勾选翻译语言，仅保存了中文）'));
