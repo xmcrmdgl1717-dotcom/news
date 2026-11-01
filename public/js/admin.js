@@ -78,7 +78,7 @@ async function fetchData() {
         document.getElementById('categoryList').innerHTML = allCategories.map(c => `<tr><td>${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="openEditCategory('${c.id}')" class="text-blue-500 mr-2">编辑</button><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`).join('');
     }
 
-    // 渲染多语言列表
+    // 渲染多语言列表（含一键翻译按钮）
     renderLanguages();
 
     if(document.getElementById('crawlEnabled')) {
@@ -130,6 +130,7 @@ async function fetchData() {
     applyFilters();
 }
 
+// 🚨 补全：多语言列表渲染，包含一键翻译
 function renderLanguages() {
     const tbody = document.getElementById('languageList');
     if (!tbody) return;
@@ -143,8 +144,10 @@ function renderLanguages() {
                     ${l.active ? '已启用' : '已禁用'}
                 </button>
             </td>
-            <td class="p-3">
-                <button onclick="openEditLang('${l.code}')" class="text-blue-500 text-sm hover:underline mr-3">编辑字典</button>
+            <td class="p-3 flex gap-2">
+                <button onclick="openEditLang('${l.code}')" class="text-blue-500 text-sm hover:underline">编辑字典</button>
+                <!-- 补充一键翻译按钮 -->
+                <button onclick="autoTranslateDict('${l.code}', this)" class="text-orange-500 text-sm hover:underline">一键翻译</button>
                 <button onclick="deleteLanguage('${l.code}')" class="text-red-500 text-sm hover:underline">删除</button>
             </td>
         </tr>
@@ -169,6 +172,21 @@ async function deleteLanguage(code) {
     fetchData();
 }
 
+// 🚨 补全：多语言字典一键翻译
+async function autoTranslateDict(code, btn) {
+    if(!confirm(`确定要使用真实的 DeepL API 自动覆盖翻译 [${code}] 的菜单字典吗？`)) return;
+    const old = btn.innerText; btn.innerText = '请求翻译中...'; btn.disabled = true;
+    try {
+        const res = await fetch('/api/admin/languages/translate-dict', { 
+            method: 'POST', 
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
+            body: JSON.stringify({ targetLang: code }) 
+        });
+        const data = await res.json(); 
+        if (data.success) { alert('字典已通过 DeepL 翻译成功！'); fetchData(); } else { alert('翻译失败: ' + (data.error || '未知错误')); }
+    } catch(e) { alert('网络请求失败'); } finally { btn.innerText = old; btn.disabled = false; }
+}
+
 function populateFilterOptions() {
     const fields = [
         { elId: 'filterDevice', prop: 'device' },
@@ -189,7 +207,7 @@ function populateFilterOptions() {
     });
 }
 
-// ================= 🚨 改造后：独立卡片采集源管理 =================
+// ================= 采集配置管理 =================
 function renderCrawlSourcesList(configs) {
     const list = document.getElementById('crawlSourceList');
     if (!list) return;
@@ -218,6 +236,12 @@ function renderCrawlSourcesList(configs) {
                         </div>
                         <div class="text-xs text-gray-500 font-mono mt-1 truncate" style="max-width: 250px;">${c.url}</div>
                         <div class="text-xs text-blue-500 font-bold mt-1">翻译目标: ${activeLangIcons || '未配置'}</div>
+                        
+                        <!-- 单个源的自动采集开关 -->
+                        <label class="flex items-center gap-1 mt-2 cursor-pointer">
+                            <input type="checkbox" onchange="toggleSourceAuto('${c.id}', this.checked)" ${c.autoEnabled ? 'checked' : ''} class="w-4 h-4 accent-blue-600 cursor-pointer">
+                            <span class="text-xs text-gray-600 dark:text-gray-400">独立自动采集</span>
+                        </label>
                     </div>
                 </div>
             </div>
@@ -232,7 +256,6 @@ function renderCrawlSourcesList(configs) {
     }).join('');
 }
 
-// 单独采集某个源
 async function crawlSingleSource(configId, btnEl) {
     const oldText = btnEl.innerText;
     btnEl.innerText = '采集中...';
@@ -259,7 +282,18 @@ async function crawlSingleSource(configId, btnEl) {
     }
 }
 
-// 添加/编辑弹窗 (去掉了源语言下拉，确保读取了 allLangs)
+// 切换单源独立自动采集
+async function toggleSourceAuto(id, isChecked) {
+    await fetch(`/api/admin/crawl/source/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+        body: JSON.stringify({ autoEnabled: isChecked })
+    });
+    // 这里为了流畅不刷新整个页面，只更新本地内存
+    const target = globalCrawlConfigs.find(c => c.id === id);
+    if (target) target.autoEnabled = isChecked;
+}
+
 function openCrawlSourceModal() {
     document.getElementById('crawlSourceId').value = '';
     document.getElementById('crawlSourceName').value = '';
@@ -312,7 +346,6 @@ async function saveCrawlSource() {
     const image = document.getElementById('crawlSourceImage').value.trim();
     const limit = parseInt(document.getElementById('crawlSourceLimit').value) || 10;
     
-    // 不再有源语言
     const targetLangs = Array.from(document.querySelectorAll('.crawl-target-lang-cb:checked')).map(cb => cb.value);
     const mappingStr = document.getElementById('crawlSourceMapping').value;
 
@@ -649,7 +682,6 @@ function editArticleGroup(groupId) {
     document.getElementById('editArtCoverUrl').value = main.coverUrl || '';
     editQuill.root.innerHTML = main.content || '';
     
-    // 编辑文章的多语言，只渲染后台启用的语言
     document.getElementById('editArticleLangCheckboxes').innerHTML = allLangs.filter(l => l.active).map(l => {
         const isTranslated = existingLangs.includes(l.code); const disabled = l.code === 'zh' ? 'disabled' : ''; const checked = (l.code === 'zh' || isTranslated) ? 'checked' : '';
         const badge = isTranslated ? `<span class="text-green-500 text-[10px] bg-green-100 px-1.5 py-0.5 rounded">已翻译</span>` : `<span class="text-red-500 text-[10px] bg-red-100 px-1.5 py-0.5 rounded">未翻译</span>`;
