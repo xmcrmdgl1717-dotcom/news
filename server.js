@@ -55,7 +55,7 @@ Object.keys(DB_FILES).forEach(key => {
     }
 });
 
-// 修复多语言配置
+// 强制修复多语言配置
 try {
     let langs = JSON.parse(fs.readFileSync(DB_FILES.languages, 'utf8'));
     let updated = false;
@@ -312,7 +312,78 @@ app.get('/api/admin/data', auth, (req, res) => {
     res.json({ articles: readDB('articles'), languages: readDB('languages'), settings: readDB('settings'), categories: readDB('categories'), tracking: readDB('tracking'), visits: readDB('visits'), crawl: readDB('crawl') });
 });
 
-// 新增：查询 DeepL 额度
+// 批量翻译（补齐缺失语言）
+app.post('/api/admin/articles/batch-translate', auth, async (req, res) => {
+    const { startDate, endDate } = req.body;
+    let articles = readDB('articles');
+    const activeLangs = readDB('languages').filter(l => l.active).map(l => l.code);
+    
+    let targetArticles = articles;
+    if (startDate || endDate) {
+        targetArticles = articles.filter(a => {
+            const t = new Date(a.time).getTime();
+            if (startDate && t < new Date(startDate).getTime()) return false;
+            if (endDate && t > new Date(endDate).getTime() + 86400000) return false;
+            return true;
+        });
+    }
+
+    const groups = {};
+    targetArticles.forEach(a => { if (!groups[a.groupId]) groups[a.groupId] = []; groups[a.groupId].push(a); });
+
+    let successCount = 0; let newCount = 0;
+
+    for (const groupId in groups) {
+        const group = groups[groupId];
+        const main = group.find(a => a.lang === 'original' || a.lang === 'zh' || a.lang === 'en') || group[0];
+        if (!main) continue;
+
+        const existingLangs = group.map(a => a.lang);
+        let missingLangs = activeLangs.filter(l => !existingLangs.includes(l));
+
+        if (missingLangs.length > 0) {
+            try {
+                for (let l of missingLangs) {
+                    const tTitle = await translateText([main.title], l);
+                    const tSummary = await translateText([main.summary], l);
+                    const tContent = await translateText([main.content], l);
+                    if (tTitle[0] && tSummary[0] && tContent[0]) {
+                        articles.push({ id: uuidv4(), groupId: main.groupId, lang: l, type: main.type, title: tTitle[0], summary: tSummary[0], content: tContent[0], coverUrl: main.coverUrl, author: main.author, time: main.time });
+                        newCount++;
+                    }
+                }
+                successCount++;
+            } catch (e) { console.error('批量翻译出错:', e.message); }
+        }
+    }
+    writeDB('articles', articles);
+    res.json({ success: true, translatedGroups: successCount, addedLangs: newCount });
+});
+
+// 批量删除
+app.post('/api/admin/articles/batch-delete', auth, (req, res) => {
+    const { startDate, endDate } = req.body;
+    let articles = readDB('articles');
+    
+    let targetIds = new Set();
+    articles.forEach(a => {
+        let match = true;
+        if (startDate || endDate) {
+            const t = new Date(a.time).getTime();
+            if (startDate && t < new Date(startDate).getTime()) match = false;
+            if (endDate && t > new Date(endDate).getTime() + 86400000) match = false;
+        }
+        if (match) targetIds.add(a.groupId);
+    });
+
+    const originalLength = articles.length;
+    articles = articles.filter(a => !targetIds.has(a.groupId));
+    writeDB('articles', articles);
+
+    res.json({ success: true, deletedCount: originalLength - articles.length });
+});
+
+// DeepL 额度查询
 app.get('/api/admin/deepl/usage', auth, async (req, res) => {
     const settings = readDB('settings');
     let apiKey = req.query.key || settings.deeplKey1;
@@ -328,7 +399,7 @@ app.get('/api/admin/deepl/usage', auth, async (req, res) => {
     }
 });
 
-// 新增：翻译记录查询（支持时间与关键字）
+// 翻译日志查询
 app.get('/api/admin/translation-logs', auth, (req, res) => {
     const LOGS_FILE = path.join(DB_DIR, 'translation_logs.json');
     if (!fs.existsSync(LOGS_FILE)) return res.json({ totalCount: 0, totalChars: 0, logs: [] });
@@ -397,12 +468,19 @@ app.put('/api/admin/categories/:id', auth, (req, res) => { const cats = readDB('
 app.delete('/api/admin/categories/:id', auth, (req, res) => { writeDB('categories', readDB('categories').filter(c => c.id !== req.params.id)); res.json({ success: true }); });
 
 app.put('/api/admin/settings', auth, async (req, res) => {
-    const oldSettings = readDB('settings'); const newSettings = { ...oldSettings, ...req.body };
+    const oldSettings = readDB('settings'); 
+    const newSettings = { ...oldSettings, ...req.body };
     if (req.body.toolDescZh !== undefined && req.body.targetLangs !== undefined) {
-        let newToolDesc = oldSettings.toolDesc || { zh: req.body.toolDescZh };
+        let newToolDesc = oldSettings.toolDesc || {};
+        newToolDesc.zh = req.body.toolDescZh; // 🚨 核心修复：强制更新中文
         try {
             const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
-            for (let l of langs) { if (req.body.targetLangs.includes(l.code)) { const result = await translateText([req.body.toolDescZh], l.code); newToolDesc[l.code] = result[0]; } }
+            for (let l of langs) { 
+                if (req.body.targetLangs.includes(l.code)) { 
+                    const result = await translateText([req.body.toolDescZh], l.code); 
+                    newToolDesc[l.code] = result[0]; 
+                } 
+            }
             newSettings.toolDesc = newToolDesc;
         } catch (e) { return res.status(500).json({ error: e.message }); }
     }
