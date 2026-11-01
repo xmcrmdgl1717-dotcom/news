@@ -193,7 +193,7 @@
                             <h3 class="font-bold text-lg text-blue-600">采集源管理</h3>
                             <button onclick="openCrawlSourceModal()" class="px-3 py-1.5 bg-blue-100 text-blue-700 text-sm font-bold rounded hover:bg-blue-200">➕ 添加采集源</button>
                         </div>
-                        <p class="text-xs text-gray-500 mb-4">支持添加多个不同站点的 RSS/JSON 源，系统会自动处理并翻译。</p>
+                        <p class="text-xs text-gray-500 mb-4">支持添加多个不同站点的 RSS/JSON 源，系统会自动处理并翻译。每个源可单独设置条数和封面。</p>
                         
                         <div class="space-y-3 mb-6" id="crawlSourceList"></div>
 
@@ -208,7 +208,7 @@
                                 <span class="text-sm">分钟采集一次</span>
                             </div>
                             <div class="flex items-center gap-2">
-                                <span class="text-sm">每源获取</span>
+                                <span class="text-sm">默认每源获取</span>
                                 <input type="number" id="crawlLimit" class="input w-20 p-1 text-sm" value="10" min="1">
                                 <span class="text-sm">条</span>
                             </div>
@@ -400,9 +400,19 @@
                         <select id="crawlSourceLang" class="input"></select>
                     </div>
                 </div>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="col-span-2">
+                        <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">RSS/API 地址</label>
+                        <input type="text" id="crawlSourceUrl" class="input" placeholder="https://...">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">单独获取条数</label>
+                        <input type="number" id="crawlSourceLimit" class="input" placeholder="留空使用全局" min="1" value="">
+                    </div>
+                </div>
                 <div>
-                    <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">RSS/API 地址</label>
-                    <input type="text" id="crawlSourceUrl" class="input" placeholder="https://...">
+                    <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源 Logo / 封面图地址 (可选)</label>
+                    <input type="text" id="crawlSourceImage" class="input" placeholder="https://.../logo.png">
                 </div>
                 
                 <div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);">
