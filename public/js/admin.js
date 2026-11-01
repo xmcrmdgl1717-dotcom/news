@@ -12,6 +12,13 @@ let currentPage = 1;
 let pageSize = 50;
 let filteredVisits = [];
 
+// 文章列表分页/筛选
+let articleCurrentPage = 1;
+let articlePageSize = 50;
+// 采集列表分页/筛选
+let crawledCurrentPage = 1;
+let crawledPageSize = 50;
+
 // 严格过滤后，DeepL 支持的语言及常用映射
 const COMMON_LANGUAGES = [
     { name: '简体中文', code: 'zh', flag: '🇨🇳', desc: 'ISO标准代码', iso: 'zh' },
@@ -104,18 +111,91 @@ document.addEventListener('DOMContentLoaded', () => {
 
     bindUploadEvents();
     initLangCodeTable();
+    injectArticleFilters();
+    injectPaginationContainers();
+    ensureCoverPreview();
 });
 
 function bindUploadEvents() {
     document.getElementById('artCoverFile')?.addEventListener('change', async (e) => {
         const file = e.target.files[0]; if (!file) return;
         const formData = new FormData(); formData.append('image', file);
-        try { const res = await fetch('/api/admin/upload', { method: 'POST', headers: { 'x-admin-pwd': adminPwd }, body: formData }); const data = await res.json(); if (data.url) document.getElementById('artCoverUrl').value = data.url; } catch (err) {}
+        try { const res = await fetch('/api/admin/upload', { method: 'POST', headers: { 'x-admin-pwd': adminPwd }, body: formData }); const data = await res.json(); if (data.url) { document.getElementById('artCoverUrl').value = data.url; updateCoverPreview('artCoverUrl', 'artCoverPreview'); } } catch (err) {}
     });
     document.getElementById('editArtCoverFile')?.addEventListener('change', async (e) => {
         const file = e.target.files[0]; if (!file) return;
         const formData = new FormData(); formData.append('image', file);
-        try { const res = await fetch('/api/admin/upload', { method: 'POST', headers: { 'x-admin-pwd': adminPwd }, body: formData }); const data = await res.json(); if (data.url) document.getElementById('editArtCoverUrl').value = data.url; } catch (err) {}
+        try { const res = await fetch('/api/admin/upload', { method: 'POST', headers: { 'x-admin-pwd': adminPwd }, body: formData }); const data = await res.json(); if (data.url) { document.getElementById('editArtCoverUrl').value = data.url; updateCoverPreview('editArtCoverUrl', 'editArtCoverPreview'); } } catch (err) {}
+    });
+}
+
+function updateCoverPreview(inputId, imgId) {
+    const input = document.getElementById(inputId);
+    const img = document.getElementById(imgId);
+    if (!input || !img) return;
+    if (input.value) {
+        img.src = input.value;
+        img.style.display = 'block';
+    } else {
+        img.style.display = 'none';
+    }
+}
+
+function ensureCoverPreview() {
+    const artUrl = document.getElementById('artCoverUrl');
+    if (artUrl && !document.getElementById('artCoverPreview')) {
+        const img = document.createElement('img');
+        img.id = 'artCoverPreview';
+        img.style.cssText = 'max-width:100px;max-height:100px;border-radius:4px;margin-top:6px;display:none;border:1px solid var(--cms-border);';
+        artUrl.parentElement.appendChild(img);
+        artUrl.addEventListener('change', () => updateCoverPreview('artCoverUrl', 'artCoverPreview'));
+        setInterval(() => updateCoverPreview('artCoverUrl', 'artCoverPreview'), 1000);
+    }
+    const editUrl = document.getElementById('editArtCoverUrl');
+    if (editUrl && !document.getElementById('editArtCoverPreview')) {
+        const img = document.createElement('img');
+        img.id = 'editArtCoverPreview';
+        img.style.cssText = 'max-width:100px;max-height:100px;border-radius:4px;margin-top:6px;display:none;border:1px solid var(--cms-border);';
+        editUrl.parentElement.appendChild(img);
+        editUrl.addEventListener('change', () => updateCoverPreview('editArtCoverUrl', 'editArtCoverPreview'));
+        setInterval(() => updateCoverPreview('editArtCoverUrl', 'editArtCoverPreview'), 1000);
+    }
+}
+
+function injectArticleFilters() {
+    const artBtnGroup = document.querySelector('#tab-articles .flex.flex-wrap.justify-between.items-center.mb-4.gap-2 .flex.items-center.gap-2');
+    if (!artBtnGroup || document.getElementById('artFilterStartDate')) return;
+    const startInput = document.createElement('input');
+    startInput.type = 'date'; startInput.id = 'artFilterStartDate'; startInput.className = 'input p-1.5 w-auto';
+    startInput.onchange = () => { articleCurrentPage = 1; renderArticlesList(); };
+    const span = document.createElement('span'); span.textContent = '至'; span.className = 'text-xs';
+    const endInput = document.createElement('input');
+    endInput.type = 'date'; endInput.id = 'artFilterEndDate'; endInput.className = 'input p-1.5 w-auto';
+    endInput.onchange = () => { articleCurrentPage = 1; renderArticlesList(); };
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = '重置';
+    resetBtn.className = 'bg-gray-200 text-gray-700 px-2 py-1 rounded text-xs font-bold';
+    resetBtn.onclick = () => { 
+        document.getElementById('artFilterStartDate').value = ''; 
+        document.getElementById('artFilterEndDate').value = ''; 
+        articleCurrentPage = 1; 
+        renderArticlesList(); 
+    };
+    artBtnGroup.prepend(resetBtn);
+    artBtnGroup.prepend(endInput);
+    artBtnGroup.prepend(span);
+    artBtnGroup.prepend(startInput);
+}
+
+function injectPaginationContainers() {
+    ['articleList', 'crawledArticleList'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el && !document.getElementById(id + 'Pagination')) {
+            const div = document.createElement('div');
+            div.id = id + 'Pagination';
+            div.className = 'flex justify-between items-center mt-4 text-sm';
+            el.after(div);
+        }
     });
 }
 
@@ -199,7 +279,6 @@ async function fetchData() {
         document.getElementById('crawlInterval').value = crawl.interval || 30;
         globalCrawlConfigs = crawl.configs || []; 
         renderCrawlSourcesList(globalCrawlConfigs);
-        renderCrawledArticles(); 
     }
 
     if(document.getElementById('trackingInterval')) {
@@ -209,34 +288,8 @@ async function fetchData() {
     renderSources();
     renderTrackingLogs();
 
-    const groups = {};
-    allArticles.forEach(a => { const gid = a.groupId || a.id; if (!groups[gid]) groups[gid] = []; groups[gid].push(a); });
-    let articleHtml = '';
-    Object.values(groups).forEach(group => {
-        const main = group.find(a => a.lang === 'zh') || group.find(a => a.lang === 'en') || group[0];
-        const otherLangs = group.filter(a => a.lang !== main.lang);
-        articleHtml += `
-        <div class="border p-3 rounded flex flex-col mb-2" style="border-color: var(--cms-border); background: rgba(128,128,128,0.05);">
-            <div class="flex justify-between items-center w-full">
-                <div class="flex-1 min-w-0 pr-2">
-                    <span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded mr-2 shrink-0">${allCategories.find(c=>c.id === main.type)?.name_zh || '未分类'}</span>
-                    <b class="text-sm">${main.title}</b>
-                </div>
-                <div class="flex gap-2 shrink-0">
-                    <button onclick="editArticleGroup('${main.groupId || main.id}')" class="text-blue-500 text-xs hover:underline bg-blue-50 px-2 py-1 rounded">编辑</button>
-                    <button onclick="deleteArticleGroup('${main.groupId || main.id}')" class="text-red-500 text-xs hover:underline bg-red-50 px-2 py-1 rounded">删除</button>
-                </div>
-            </div>
-            ${otherLangs.length > 0 ? `
-            <details class="mt-2 w-full">
-                <summary class="text-xs text-blue-500 font-bold outline-none"><span class="arrow">▶</span> 包含 ${otherLangs.length} 个其他语言版本</summary>
-                <div class="mt-2 pl-4 space-y-1">
-                    ${otherLangs.map(o => `<div class="text-xs text-gray-500 flex items-center gap-2"><span class="uppercase text-[10px] bg-gray-200 px-1 rounded">${o.lang}</span> ${o.title}</div>`).join('')}
-                </div>
-            </details>` : ''}
-        </div>`;
-    });
-    if(document.getElementById('articleList')) document.getElementById('articleList').innerHTML = articleHtml || '<div class="text-center py-4 text-gray-500">暂无文章</div>';
+    renderArticlesList();
+    renderCrawledArticles();
 
     populateFilterOptions();
     calculateStats();
@@ -294,7 +347,7 @@ async function autoTranslateDict(code, btn) {
 // ================= DeepL 额度与日志 =================
 async function loadDeepLUsage(type = 'sys') {
     let keyToCheck = '';
-    if (type === 'sys') keyToCheck = document.getElementById('deeplKey1').value.trim();
+    if (type === 'sys') keyToCheck = (document.getElementById('deeplKey1')?.value || '').trim();
     else if (type === 'translog') keyToCheck = globalSettings.deeplKey1 || '';
     
     if (!keyToCheck) {
@@ -432,7 +485,28 @@ async function toggleSourceAuto(id, isChecked) {
     const target = globalCrawlConfigs.find(c => c.id === id); if (target) target.autoEnabled = isChecked;
 }
 
+function ensureCrawlImageUploader() {
+    const input = document.getElementById('crawlSourceImage');
+    if (!input || document.getElementById('crawlSourceImageFile')) return;
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.id = 'crawlSourceImageFile';
+    fileInput.accept = 'image/*';
+    fileInput.className = 'input text-sm mt-1';
+    fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const fd = new FormData(); fd.append('image', file);
+        try {
+            const res = await fetch('/api/admin/upload', { method: 'POST', headers: { 'x-admin-pwd': adminPwd }, body: fd });
+            const data = await res.json();
+            if (data.url) { input.value = data.url; alert('图片上传成功'); }
+        } catch(err) { alert('上传失败'); }
+    });
+    input.after(fileInput);
+}
+
 function openCrawlSourceModal() {
+    ensureCrawlImageUploader();
     document.getElementById('crawlSourceId').value = ''; document.getElementById('crawlSourceName').value = ''; document.getElementById('crawlSourceUrl').value = ''; document.getElementById('crawlSourceImage').value = ''; document.getElementById('crawlSourceLimit').value = '10'; document.getElementById('crawlModalTitle').innerText = '添加采集源';
     document.getElementById('crawlTargetLangCheckboxes').innerHTML = allLangs.filter(l=>l.active).map(l => `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 transition"><input type="checkbox" value="${l.code}" class="crawl-target-lang-cb accent-blue-600"> ${l.flag} ${l.name}</label>`).join('');
     document.getElementById('crawlSourceMapping').value = JSON.stringify({ "title": "title", "summary": "description", "content": "description", "author": "author", "time": "pubDate", "type": "hack" }, null, 2);
@@ -440,6 +514,7 @@ function openCrawlSourceModal() {
 }
 
 function editCrawlSource(index) {
+    ensureCrawlImageUploader();
     const c = globalCrawlConfigs[index]; if (!c) return;
     document.getElementById('crawlSourceId').value = c.id; document.getElementById('crawlSourceName').value = c.name; document.getElementById('crawlSourceUrl').value = c.url; document.getElementById('crawlSourceImage').value = c.image || ''; document.getElementById('crawlSourceLimit').value = c.limit || 10; document.getElementById('crawlModalTitle').innerText = '编辑采集源';
     document.getElementById('crawlTargetLangCheckboxes').innerHTML = allLangs.filter(l=>l.active).map(l => { const isChecked = (c.targetLangs || []).includes(l.code) ? 'checked' : ''; return `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 transition"><input type="checkbox" value="${l.code}" class="crawl-target-lang-cb accent-blue-600" ${isChecked}> ${l.flag} ${l.name}</label>`; }).join('');
@@ -471,15 +546,179 @@ async function saveCrawlConfig() {
     alert('自动采集设置已保存'); fetchData();
 }
 
+// ================= 文章列表渲染（带日期筛选 + 分页） =================
+function renderArticlesList() {
+    const listEl = document.getElementById('articleList');
+    if (!listEl) return;
+    const sizeSelect = document.getElementById('artPageSize');
+    articlePageSize = sizeSelect ? (parseInt(sizeSelect.value) || 50) : 50;
+
+    const start = document.getElementById('artFilterStartDate')?.value || '';
+    const end = document.getElementById('artFilterEndDate')?.value || '';
+
+    let filtered = allArticles;
+    if (start || end) {
+        const startTs = start ? new Date(start).getTime() : 0;
+        const endTs = end ? new Date(end).getTime() + 86400000 - 1 : Infinity;
+        filtered = allArticles.filter(a => {
+            const t = new Date(a.time).getTime();
+            return t >= startTs && t <= endTs;
+        });
+    }
+
+    const groups = {};
+    filtered.forEach(a => { const gid = a.groupId || a.id; if (!groups[gid]) groups[gid] = []; groups[gid].push(a); });
+    const groupList = Object.values(groups);
+
+    groupList.sort((g1, g2) => {
+        const m1 = g1.find(a => a.lang === 'zh') || g1.find(a => a.lang === 'en') || g1[0];
+        const m2 = g2.find(a => a.lang === 'zh') || g2.find(a => a.lang === 'en') || g2[0];
+        return new Date(m2.time) - new Date(m1.time);
+    });
+
+    const totalPages = Math.ceil(groupList.length / articlePageSize) || 1;
+    if (articleCurrentPage > totalPages) articleCurrentPage = totalPages;
+    if (articleCurrentPage < 1) articleCurrentPage = 1;
+
+    const pageGroups = groupList.slice((articleCurrentPage - 1) * articlePageSize, articleCurrentPage * articlePageSize);
+
+    let html = '';
+    pageGroups.forEach(group => {
+        const main = group.find(a => a.lang === 'zh') || group.find(a => a.lang === 'en') || group[0];
+        const otherLangs = group.filter(a => a.lang !== main.lang);
+        html += `
+        <div class="border p-3 rounded flex flex-col mb-2" style="border-color: var(--cms-border); background: rgba(128,128,128,0.05);">
+            <div class="flex justify-between items-center w-full">
+                <div class="flex-1 min-w-0 pr-2">
+                    <span class="text-xs bg-blue-100 text-blue-600 px-2 py-0.5 rounded mr-2 shrink-0">${allCategories.find(c=>c.id === main.type)?.name_zh || '未分类'}</span>
+                    <b class="text-sm">${main.title}</b>
+                </div>
+                <div class="flex gap-2 shrink-0">
+                    <button onclick="editArticleGroup('${main.groupId || main.id}')" class="text-blue-500 text-xs hover:underline bg-blue-50 px-2 py-1 rounded">编辑</button>
+                    <button onclick="deleteArticleGroup('${main.groupId || main.id}')" class="text-red-500 text-xs hover:underline bg-red-50 px-2 py-1 rounded">删除</button>
+                </div>
+            </div>
+            ${otherLangs.length > 0 ? `
+            <details class="mt-2 w-full">
+                <summary class="text-xs text-blue-500 font-bold outline-none"><span class="arrow">▶</span> 包含 ${otherLangs.length} 个其他语言版本</summary>
+                <div class="mt-2 pl-4 space-y-1">
+                    ${otherLangs.map(o => `<div class="text-xs text-gray-500 flex items-center gap-2"><span class="uppercase text-[10px] bg-gray-200 px-1 rounded">${o.lang}</span> ${o.title}</div>`).join('')}
+                </div>
+            </details>` : ''}
+        </div>`;
+    });
+
+    listEl.innerHTML = html || '<div class="text-center py-4 text-gray-500">暂无文章</div>';
+
+    let container = document.getElementById('articleListPagination');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'articleListPagination';
+        container.className = 'flex justify-between items-center mt-4 text-sm';
+        listEl.after(container);
+    }
+    container.innerHTML = `
+        <div class="text-gray-500">共 ${groupList.length} 组</div>
+        <div class="flex items-center gap-2">
+            <button onclick="changeArticlePage(-1)" ${articleCurrentPage <= 1 ? 'disabled' : ''} class="px-3 py-1 rounded border disabled:opacity-50" style="background-color: var(--cms-card); border-color: var(--cms-border); color: var(--cms-text-main);">上一页</button>
+            <span class="text-gray-500 px-2">第 ${articleCurrentPage} / ${totalPages} 页</span>
+            <button onclick="changeArticlePage(1)" ${articleCurrentPage >= totalPages ? 'disabled' : ''} class="px-3 py-1 rounded border disabled:opacity-50" style="background-color: var(--cms-card); border-color: var(--cms-border); color: var(--cms-text-main);">下一页</button>
+        </div>
+    `;
+}
+
+function changeArticlePage(delta) {
+    articleCurrentPage += delta;
+    renderArticlesList();
+}
+
+async function batchTranslateArticles() {
+    const start = document.getElementById('artFilterStartDate')?.value || '';
+    const end = document.getElementById('artFilterEndDate')?.value || '';
+    const scope = (start || end) ? `日期范围 ${start || '不限'} 至 ${end || '不限'}` : '全部数据';
+    if (!confirm(`将为【${scope}】内所有文章补全缺失的语言翻译（已有版本不会重复翻译），是否继续？`)) return;
+
+    const btn = document.querySelector('button[onclick="batchTranslateArticles()"]');
+    const old = btn?.innerText;
+    if (btn) { btn.innerText = '翻译中...'; btn.disabled = true; }
+    try {
+        const body = {};
+        if (start) body.startDate = start;
+        if (end) body.endDate = end;
+        const res = await fetch('/api/admin/articles/batch-translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alert(`批量翻译完成！处理 ${data.translatedGroups} 组，新增 ${data.addedLangs} 个语言版本。`);
+            fetchData();
+        } else {
+            alert('翻译失败: ' + (data.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('网络错误: ' + e.message);
+    } finally {
+        if (btn) { btn.innerText = old; btn.disabled = false; }
+    }
+}
+
+async function batchDeleteArticles() {
+    const start = document.getElementById('artFilterStartDate')?.value || '';
+    const end = document.getElementById('artFilterEndDate')?.value || '';
+    const scope = (start || end) ? `日期范围 ${start || '不限'} 至 ${end || '不限'}` : '全部数据';
+    const confirmText = prompt(`此操作将删除【${scope}】内所有文章组（含所有语言版本），不可恢复！\n请输入"确认删除"以继续：`);
+    if (confirmText !== '确认删除') { alert('已取消'); return; }
+
+    const btn = document.querySelector('button[onclick="batchDeleteArticles()"]');
+    const old = btn?.innerText;
+    if (btn) { btn.innerText = '删除中...'; btn.disabled = true; }
+    try {
+        const body = {};
+        if (start) body.startDate = start;
+        if (end) body.endDate = end;
+        const res = await fetch('/api/admin/articles/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alert(`批量删除完成！共删除 ${data.deletedCount} 篇文章。`);
+            fetchData();
+        } else {
+            alert('删除失败: ' + (data.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('网络错误: ' + e.message);
+    } finally {
+        if (btn) { btn.innerText = old; btn.disabled = false; }
+    }
+}
+
+// ================= 采集文章列表渲染（带日期筛选 + 分页） =================
 function renderCrawledArticles() {
     const list = document.getElementById('crawledArticleList'); if (!list) return;
-    const filterDate = document.getElementById('crawlFilterDate')?.value;
+    const sizeSelect = document.getElementById('crawlPageSize');
+    crawledPageSize = sizeSelect ? (parseInt(sizeSelect.value) || 50) : 50;
+    const filterDate = document.getElementById('crawlFilterDate')?.value || '';
+
     let articles = allArticles.filter(a => a.lang === 'en' || a.lang === 'zh' || a.lang === 'original'); 
     if (filterDate) articles = articles.filter(a => a.time.startsWith(filterDate));
     articles.sort((a, b) => new Date(b.time) - new Date(a.time));
+
     const groups = {}; articles.forEach(a => { if (!groups[a.groupId]) groups[a.groupId] = []; groups[a.groupId].push(a); });
+    const groupList = Object.values(groups);
+
+    const totalPages = Math.ceil(groupList.length / crawledPageSize) || 1;
+    if (crawledCurrentPage > totalPages) crawledCurrentPage = totalPages;
+    if (crawledCurrentPage < 1) crawledCurrentPage = 1;
+
+    const pageGroups = groupList.slice((crawledCurrentPage - 1) * crawledPageSize, crawledCurrentPage * crawledPageSize);
+
     let html = '';
-    Object.values(groups).forEach(group => {
+    pageGroups.forEach(group => {
         const main = group.find(a => a.lang === 'original') || group.find(a => a.lang === 'en') || group[0];
         const allGroupLangs = allArticles.filter(a => a.groupId === main.groupId);
         const otherLangs = allGroupLangs.filter(a => a.lang !== main.lang);
@@ -493,6 +732,86 @@ function renderCrawledArticles() {
         </div>`;
     });
     list.innerHTML = html || '<div class="text-center py-4 text-gray-500">暂无采集数据</div>';
+
+    let container = document.getElementById('crawledArticleListPagination');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'crawledArticleListPagination';
+        container.className = 'flex justify-between items-center mt-4 text-sm';
+        list.after(container);
+    }
+    container.innerHTML = `
+        <div class="text-gray-500">共 ${groupList.length} 组</div>
+        <div class="flex items-center gap-2">
+            <button onclick="changeCrawledPage(-1)" ${crawledCurrentPage <= 1 ? 'disabled' : ''} class="px-3 py-1 rounded border disabled:opacity-50" style="background-color: var(--cms-card); border-color: var(--cms-border); color: var(--cms-text-main);">上一页</button>
+            <span class="text-gray-500 px-2">第 ${crawledCurrentPage} / ${totalPages} 页</span>
+            <button onclick="changeCrawledPage(1)" ${crawledCurrentPage >= totalPages ? 'disabled' : ''} class="px-3 py-1 rounded border disabled:opacity-50" style="background-color: var(--cms-card); border-color: var(--cms-border); color: var(--cms-text-main);">下一页</button>
+        </div>
+    `;
+}
+
+function changeCrawledPage(delta) {
+    crawledCurrentPage += delta;
+    renderCrawledArticles();
+}
+
+async function batchTranslateCrawled() {
+    const date = document.getElementById('crawlFilterDate')?.value || '';
+    const scope = date ? `日期 ${date}` : '全部采集数据';
+    if (!confirm(`将为【${scope}】内所有采集文章补全缺失的语言翻译（已有版本不会重复翻译），是否继续？`)) return;
+
+    const btn = document.querySelector('button[onclick="batchTranslateCrawled()"]');
+    const old = btn?.innerText;
+    if (btn) { btn.innerText = '翻译中...'; btn.disabled = true; }
+    try {
+        const body = date ? { startDate: date, endDate: date } : {};
+        const res = await fetch('/api/admin/articles/batch-translate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alert(`批量翻译完成！处理 ${data.translatedGroups} 组，新增 ${data.addedLangs} 个语言版本。`);
+            fetchData();
+        } else {
+            alert('翻译失败: ' + (data.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('网络错误: ' + e.message);
+    } finally {
+        if (btn) { btn.innerText = old; btn.disabled = false; }
+    }
+}
+
+async function batchDeleteCrawled() {
+    const date = document.getElementById('crawlFilterDate')?.value || '';
+    const scope = date ? `日期 ${date}` : '全部采集数据';
+    const confirmText = prompt(`此操作将删除【${scope}】内所有文章组（含所有语言版本），不可恢复！\n请输入"确认删除"以继续：`);
+    if (confirmText !== '确认删除') { alert('已取消'); return; }
+
+    const btn = document.querySelector('button[onclick="batchDeleteCrawled()"]');
+    const old = btn?.innerText;
+    if (btn) { btn.innerText = '删除中...'; btn.disabled = true; }
+    try {
+        const body = date ? { startDate: date, endDate: date } : {};
+        const res = await fetch('/api/admin/articles/batch-delete', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+            alert(`批量删除完成！共删除 ${data.deletedCount} 篇文章。`);
+            fetchData();
+        } else {
+            alert('删除失败: ' + (data.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('网络错误: ' + e.message);
+    } finally {
+        if (btn) { btn.innerText = old; btn.disabled = false; }
+    }
 }
 
 function calculateStats() {
@@ -600,6 +919,7 @@ function editArticleGroup(groupId) {
     const group = allArticles.filter(a => a.groupId === groupId || a.id === groupId); if (!group || group.length === 0) return;
     const main = group.find(a => a.lang === 'zh') || group.find(a => a.lang === 'en') || group[0]; const existingLangs = group.map(a => a.lang); 
     document.getElementById('editArticleGroupId').value = groupId; document.getElementById('editArtType').value = main.type; document.getElementById('editArtTitle').value = main.title; document.getElementById('editArtSummary').value = main.summary; document.getElementById('editArtCoverUrl').value = main.coverUrl || ''; editQuill.root.innerHTML = main.content || '';
+    updateCoverPreview('editArtCoverUrl', 'editArtCoverPreview');
     document.getElementById('editArticleLangCheckboxes').innerHTML = allLangs.filter(l => l.active).map(l => {
         const isTranslated = existingLangs.includes(l.code); const disabled = l.code === 'zh' ? 'disabled' : ''; const checked = (l.code === 'zh' || isTranslated) ? 'checked' : '';
         const badge = isTranslated ? `<span class="text-green-500 text-[10px] bg-green-100 px-1.5 py-0.5 rounded">已翻译</span>` : `<span class="text-red-500 text-[10px] bg-red-100 px-1.5 py-0.5 rounded">未翻译</span>`;
@@ -628,7 +948,7 @@ async function submitArticle() {
     const btn = document.getElementById('articleSubmitBtn'); const old = btn.innerText; btn.innerText = '翻译并发布中...'; btn.disabled = true;
     try {
         const res = await fetch('/api/admin/article/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ title, summary, content, targetLangs: checkedLangs, type, coverUrl }) });
-        const data = await res.json(); if (data.success) { alert('发布成功！'); document.getElementById('artTitle').value = ''; document.getElementById('artSummary').value = ''; document.getElementById('artCoverUrl').value = ''; quill.setContents([]); fetchData(); } else { alert('失败: ' + (data.error || '未知错误')); }
+        const data = await res.json(); if (data.success) { alert('发布成功！'); document.getElementById('artTitle').value = ''; document.getElementById('artSummary').value = ''; document.getElementById('artCoverUrl').value = ''; updateCoverPreview('artCoverUrl', 'artCoverPreview'); quill.setContents([]); fetchData(); } else { alert('失败: ' + (data.error || '未知错误')); }
     } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
 }
 
@@ -654,17 +974,37 @@ async function saveLangDict() {
 }
 
 async function saveToolDesc() {
-    const toolDescZh = document.getElementById('toolDescZh').value; if (!toolDescZh) return alert('请输入中文描述文本');
-    const checkedLangs = Array.from(document.querySelectorAll('.tool-desc-lang-cb:checked')).map(cb => cb.value); if (checkedLangs.length === 0) return alert('请至少勾选一种翻译目标语言！');
-    const btn = event.target; const old = btn.innerText; btn.innerText = '翻译并保存中...'; btn.disabled = true;
+    const btn = document.querySelector('#tab-settings button[onclick="saveToolDesc()"]');
+    const toolDescZh = document.getElementById('toolDescZh').value;
+    if (!toolDescZh) return alert('请输入中文描述文本');
+
+    const checkedLangs = Array.from(document.querySelectorAll('.tool-desc-lang-cb:checked')).map(cb => cb.value);
+
+    const old = btn.innerText; btn.innerText = '翻译并保存中...'; btn.disabled = true;
     try {
-        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ toolDescZh, targetLangs: checkedLangs }) });
-        if (res.ok) { alert('描述已保存并完成翻译！'); fetchData(); } else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
-    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
+        const body = { toolDescZh, targetLangs: checkedLangs };
+        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify(body) });
+        if (res.ok) {
+            // 本地立即更新，避免用户误以为没生效
+            if (!globalSettings.toolDesc) globalSettings.toolDesc = {};
+            globalSettings.toolDesc.zh = toolDescZh;
+            alert('描述已保存！' + (checkedLangs.length ? '并完成翻译。' : '（未勾选翻译语言，仅保存了中文）'));
+            fetchData();
+        } else {
+            const data = await res.json();
+            alert('保存失败: ' + (data.error || '未知错误'));
+        }
+    } catch(e) {
+        alert('网络错误');
+    } finally {
+        btn.innerText = old; btn.disabled = false;
+    }
 }
+
 async function saveSettings() {
     const deeplKey1 = document.getElementById('deeplKey1').value; const deeplKey2 = document.getElementById('deeplKey2').value; const autoLang = document.getElementById('autoLangSwitch').checked; const checkWaitTime = parseInt(document.getElementById('checkWaitTime').value) || 5;
-    const btn = event.target; const old = btn.innerText; btn.innerText = '保存中...'; btn.disabled = true;
+    const btn = document.querySelector('#tab-settings button[onclick="saveSettings()"]');
+    const old = btn.innerText; btn.innerText = '保存中...'; btn.disabled = true;
     try {
         const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, checkWaitTime }) });
         if (res.ok) { alert('系统配置已保存！'); fetchData(); loadDeepLUsage('sys'); } else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
