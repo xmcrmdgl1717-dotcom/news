@@ -126,18 +126,24 @@ function bindUploadEvents() {
         const formData = new FormData(); formData.append('image', file);
         try { const res = await fetch('/api/admin/upload', { method: 'POST', headers: { 'x-admin-pwd': adminPwd }, body: formData }); const data = await res.json(); if (data.url) { document.getElementById('editArtCoverUrl').value = data.url; updateCoverPreview('editArtCoverUrl', 'editArtCoverPreview'); } } catch (err) {}
     });
+    // 新增网站 LOGO 上传
+    document.getElementById('siteLogoFile')?.addEventListener('change', async (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const formData = new FormData(); formData.append('image', file);
+        try { 
+            const res = await fetch('/api/admin/upload', { method: 'POST', headers: { 'x-admin-pwd': adminPwd }, body: formData }); 
+            const data = await res.json(); 
+            if (data.url) { document.getElementById('siteLogoUrl').value = data.url; } 
+        } catch (err) { alert('LOGO 上传失败'); }
+    });
 }
 
 function updateCoverPreview(inputId, imgId) {
     const input = document.getElementById(inputId);
     const img = document.getElementById(imgId);
     if (!input || !img) return;
-    if (input.value) {
-        img.src = input.value;
-        img.style.display = 'block';
-    } else {
-        img.style.display = 'none';
-    }
+    if (input.value) { img.src = input.value; img.style.display = 'block'; } 
+    else { img.style.display = 'none'; }
 }
 
 function ensureCoverPreview() {
@@ -260,8 +266,9 @@ async function fetchData() {
         document.getElementById('categoryList').innerHTML = allCategories.map(c => `<tr><td>${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="openEditCategory('${c.id}')" class="text-blue-500 mr-2">编辑</button><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`).join('');
     }
 
-    renderLangCheckboxes();
+    renderLangCheckboxes(); // 渲染翻译语言状态
 
+    // 系统基础配置回显
     if(document.getElementById('toolDescZh')) {
         document.getElementById('toolDescZh').value = (globalSettings.toolDesc && globalSettings.toolDesc.zh) ? globalSettings.toolDesc.zh : '';
         document.getElementById('checkWaitTime').value = globalSettings.checkWaitTime || 5;
@@ -269,6 +276,14 @@ async function fetchData() {
         document.getElementById('deeplKey2').value = globalSettings.deeplKey2 || '';
         document.getElementById('autoLangSwitch').checked = globalSettings.autoLang !== false;
         if(document.getElementById('tab-settings').classList.contains('active')) loadDeepLUsage('sys');
+    }
+
+    // 回显网站基础信息
+    if(document.getElementById('siteTitleZh')) {
+        document.getElementById('siteTitleZh').value = (globalSettings.siteTitle && globalSettings.siteTitle.zh) ? globalSettings.siteTitle.zh : '';
+        document.getElementById('siteDescZh').value = (globalSettings.siteDesc && globalSettings.siteDesc.zh) ? globalSettings.siteDesc.zh : '';
+        document.getElementById('siteLogoUrl').value = globalSettings.siteLogo || '';
+        document.getElementById('enableAddressCheck').checked = globalSettings.enableAddressCheck !== false;
     }
 
     renderLanguages();
@@ -286,7 +301,6 @@ async function fetchData() {
     }
     renderSources();
     renderTrackingLogs();
-
     renderArticlesList();
     renderCrawledArticles();
 
@@ -295,30 +309,107 @@ async function fetchData() {
     applyFilters();
 }
 
+// 渲染语言勾选，区分已翻译和未翻译
 function renderLangCheckboxes() {
     const activeLangs = allLangs.filter(l => l.active);
+    
+    // 1. 文章发布语言（全量多选）
     const artLangsDiv = document.getElementById('articleLangCheckboxes');
     if (artLangsDiv) artLangsDiv.innerHTML = activeLangs.map(l => `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 transition"><input type="checkbox" value="${l.code}" class="accent-blue-600"> ${l.flag} ${l.name}</label>`).join('');
 
+    // 2. 工具描述语言
     const toolLangsDiv = document.getElementById('toolDescLangCheckboxes');
-    if (toolLangsDiv) toolLangsDiv.innerHTML = activeLangs.map(l => `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 transition"><input type="checkbox" value="${l.code}" class="tool-desc-lang-cb accent-blue-600"> ${l.flag} ${l.name}</label>`).join('');
+    if (toolLangsDiv) toolLangsDiv.innerHTML = generateGroupedLangCheckboxes(globalSettings.toolDesc, 'tool-desc-lang-cb');
+
+    // 3. 网站基础信息语言
+    const siteLangsDiv = document.getElementById('siteInfoLangCheckboxes');
+    if (siteLangsDiv) siteLangsDiv.innerHTML = generateGroupedLangCheckboxes(globalSettings.siteTitle, 'site-info-lang-cb');
 }
 
-function renderLanguages() {
-    const tbody = document.getElementById('languageList');
-    if (!tbody) return;
-    tbody.innerHTML = allLangs.map(l => `
-        <tr class="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
-            <td class="p-3 font-mono">${l.code}</td>
-            <td class="p-3 font-bold">${l.flag || ''} ${l.name}</td>
-            <td class="p-3"><button onclick="toggleLangStatus('${l.code}', ${l.active})" class="px-2 py-1 rounded text-xs font-bold transition ${l.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${l.active ? '已启用' : '已禁用'}</button></td>
-            <td class="p-3 flex gap-2">
-                <button onclick="openEditLang('${l.code}')" class="text-blue-500 text-sm hover:underline">编辑字典</button>
-                <button onclick="autoTranslateDict('${l.code}', this)" class="text-orange-500 text-sm hover:underline">一键翻译</button>
-                <button onclick="deleteLanguage('${l.code}')" class="text-red-500 text-sm hover:underline">删除</button>
-            </td>
-        </tr>
-    `).join('') || `<tr><td colspan="4" class="text-center py-6 text-gray-500">暂无语言</td></tr>`;
+function generateGroupedLangCheckboxes(translatedData, checkboxClass) {
+    const activeLangs = allLangs.filter(l => l.active);
+    const translated = [];
+    const untranslated = [];
+    
+    activeLangs.forEach(l => {
+        const isZh = l.code === 'zh';
+        const isTranslated = translatedData && translatedData[l.code];
+        
+        const checked = isZh || isTranslated ? 'checked' : '';
+        const disabled = isZh ? 'disabled' : '';
+        
+        const html = `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 transition"><input type="checkbox" value="${l.code}" class="${checkboxClass} accent-blue-600" ${checked} ${disabled}> ${l.flag} ${l.name}</label>`;
+        
+        if (isZh || isTranslated) translated.push(html);
+        else untranslated.push(html);
+    });
+
+    let result = '';
+    if (translated.length > 0) {
+        result += `<div class="w-full mb-3"><div class="text-xs text-green-500 font-bold mb-2 border-b border-green-500/30 pb-1">✅ 已翻译 (勾选可重新翻译)</div><div class="flex flex-wrap gap-2">${translated.join('')}</div></div>`;
+    }
+    if (untranslated.length > 0) {
+        result += `<div class="w-full"><div class="text-xs text-gray-400 font-bold mb-2 border-b border-gray-500/30 pb-1">⬜ 未翻译 (勾选生成翻译)</div><div class="flex flex-wrap gap-2">${untranslated.join('')}</div></div>`;
+    }
+    return result;
+}
+
+// 保存网站基础设置
+async function saveSiteInfo() {
+    const btn = document.querySelector('#tab-settings button[onclick="saveSiteInfo()"]');
+    const siteTitleZh = document.getElementById('siteTitleZh').value;
+    const siteDescZh = document.getElementById('siteDescZh').value;
+    const siteLogo = document.getElementById('siteLogoUrl').value;
+    const checkedLangs = Array.from(document.querySelectorAll('.site-info-lang-cb:checked')).map(cb => cb.value);
+
+    if (!siteTitleZh) return alert('请输入网站标题');
+
+    const old = btn.innerText; btn.innerText = '翻译并保存中...'; btn.disabled = true;
+    try {
+        const body = { siteTitleZh, siteDescZh, siteLogo, targetLangs: checkedLangs };
+        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify(body) });
+        if (res.ok) {
+            alert('基础设置已保存并更新多语言配置！');
+            fetchData();
+        } else {
+            const data = await res.json();
+            alert('保存失败: ' + (data.error || '未知错误'));
+        }
+    } catch(e) {
+        alert('网络错误');
+    } finally {
+        btn.innerText = old; btn.disabled = false;
+    }
+}
+
+async function saveToolDesc() {
+    const btn = document.querySelector('#tab-settings button[onclick="saveToolDesc()"]');
+    const toolDescZh = document.getElementById('toolDescZh').value;
+    if (!toolDescZh) return alert('请输入中文描述文本');
+
+    const checkedLangs = Array.from(document.querySelectorAll('.tool-desc-lang-cb:checked')).map(cb => cb.value);
+    const old = btn.innerText; btn.innerText = '翻译并保存中...'; btn.disabled = true;
+    try {
+        const body = { toolDescZh, targetLangs: checkedLangs };
+        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify(body) });
+        if (res.ok) { alert('描述已保存！'); fetchData(); } 
+        else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
+    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
+}
+
+async function saveSettings() {
+    const deeplKey1 = document.getElementById('deeplKey1').value; 
+    const deeplKey2 = document.getElementById('deeplKey2').value; 
+    const autoLang = document.getElementById('autoLangSwitch').checked; 
+    const checkWaitTime = parseInt(document.getElementById('checkWaitTime').value) || 5;
+    const enableAddressCheck = document.getElementById('enableAddressCheck').checked;
+
+    const btn = document.querySelector('#tab-settings button[onclick="saveSettings()"]');
+    const old = btn.innerText; btn.innerText = '保存中...'; btn.disabled = true;
+    try {
+        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, checkWaitTime, enableAddressCheck }) });
+        if (res.ok) { alert('系统配置已保存！'); fetchData(); loadDeepLUsage('sys'); } else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
+    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
 }
 
 async function toggleLangStatus(code, currentActive) {
@@ -343,7 +434,6 @@ async function autoTranslateDict(code, btn) {
     } catch(e) { alert('网络请求失败: ' + e.message); } finally { btn.innerText = old; btn.disabled = false; }
 }
 
-// ================= DeepL 额度与日志 =================
 async function loadDeepLUsage(type = 'sys') {
     let keyToCheck = '';
     if (type === 'sys') keyToCheck = (document.getElementById('deeplKey1')?.value || '').trim();
@@ -378,10 +468,7 @@ async function loadDeepLUsage(type = 'sys') {
                 const txtEl = document.getElementById('translogUsageText');
                 const barEl = document.getElementById('translogUsageBar');
                 if(txtEl) txtEl.innerHTML = `当前主 Key 额度: 已用 ${used.toLocaleString()} / 总量 ${total.toLocaleString()} (剩余 ${(100 - percent).toFixed(1)}%)`;
-                if(barEl) {
-                    barEl.style.width = `${percent}%`;
-                    barEl.className = `${barColor} h-2.5 rounded-full transition-all duration-500`;
-                }
+                if(barEl) { barEl.style.width = `${percent}%`; barEl.className = `${barColor} h-2.5 rounded-full transition-all duration-500`; }
             }
         } else {
             const targetId = type === 'sys' ? 'deeplUsageSys' : 'translogUsageText';
@@ -399,7 +486,6 @@ async function loadTranslationLogs() {
     const startDate = document.getElementById('translogStartDate').value;
     const endDate = document.getElementById('translogEndDate').value;
     const keyword = document.getElementById('translogSearch').value;
-    
     let url = '/api/admin/translation-logs?';
     if (startDate) url += `startDate=${startDate}&`;
     if (endDate) url += `endDate=${endDate}&`;
@@ -430,7 +516,6 @@ function resetTransLogFilters() {
     loadTranslationLogs();
 }
 
-// ================= 其他原有逻辑 =================
 function populateFilterOptions() {
     const fields = [ { elId: 'filterDevice', prop: 'device' }, { elId: 'filterCountry', prop: 'country' }, { elId: 'filterOS', prop: 'os' }, { elId: 'filterBrowser', prop: 'browser' }, { elId: 'filterLang', prop: 'lang' } ];
     fields.forEach(f => {
@@ -515,7 +600,6 @@ function openCrawlSourceModal() {
     
     document.getElementById('crawlTargetLangCheckboxes').innerHTML = allLangs.filter(l=>l.active).map(l => `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 transition"><input type="checkbox" value="${l.code}" class="crawl-target-lang-cb accent-blue-600"> ${l.flag} ${l.name}</label>`).join('');
     
-    // 【修改这里】默认加入 coverUrl 自动提取规则
     document.getElementById('crawlSourceMapping').value = JSON.stringify({ 
         "title": "title", 
         "summary": "description", 
@@ -562,7 +646,6 @@ async function saveCrawlConfig() {
     alert('自动采集设置已保存'); fetchData();
 }
 
-// ================= 文章列表渲染（带日期筛选 + 分页） =================
 function renderArticlesList() {
     const listEl = document.getElementById('articleList');
     if (!listEl) return;
@@ -713,7 +796,6 @@ async function batchDeleteArticles() {
     }
 }
 
-// ================= 采集文章列表渲染（带日期筛选 + 分页） =================
 function renderCrawledArticles() {
     const list = document.getElementById('crawledArticleList'); if (!list) return;
     const sizeSelect = document.getElementById('crawlPageSize');
@@ -987,43 +1069,6 @@ function openEditLang(code) { const l = allLangs.find(x => x.code === code); if(
 async function saveLangDict() {
     const code = document.getElementById('editLangCode').value;
     try { const dict = JSON.parse(document.getElementById('editLangDict').value); await fetch(`/api/admin/languages/${code}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ dict }) }); document.getElementById('editLangModal').classList.remove('active'); fetchData(); } catch (e) { alert('JSON 格式错误'); }
-}
-
-async function saveToolDesc() {
-    const btn = document.querySelector('#tab-settings button[onclick="saveToolDesc()"]');
-    const toolDescZh = document.getElementById('toolDescZh').value;
-    if (!toolDescZh) return alert('请输入中文描述文本');
-
-    const checkedLangs = Array.from(document.querySelectorAll('.tool-desc-lang-cb:checked')).map(cb => cb.value);
-
-    const old = btn.innerText; btn.innerText = '翻译并保存中...'; btn.disabled = true;
-    try {
-        const body = { toolDescZh, targetLangs: checkedLangs };
-        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify(body) });
-        if (res.ok) {
-            if (!globalSettings.toolDesc) globalSettings.toolDesc = {};
-            globalSettings.toolDesc.zh = toolDescZh;
-            alert('描述已保存！' + (checkedLangs.length ? '并完成翻译。' : '（未勾选翻译语言，仅保存了中文）'));
-            fetchData();
-        } else {
-            const data = await res.json();
-            alert('保存失败: ' + (data.error || '未知错误'));
-        }
-    } catch(e) {
-        alert('网络错误');
-    } finally {
-        btn.innerText = old; btn.disabled = false;
-    }
-}
-
-async function saveSettings() {
-    const deeplKey1 = document.getElementById('deeplKey1').value; const deeplKey2 = document.getElementById('deeplKey2').value; const autoLang = document.getElementById('autoLangSwitch').checked; const checkWaitTime = parseInt(document.getElementById('checkWaitTime').value) || 5;
-    const btn = document.querySelector('#tab-settings button[onclick="saveSettings()"]');
-    const old = btn.innerText; btn.innerText = '保存中...'; btn.disabled = true;
-    try {
-        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, checkWaitTime }) });
-        if (res.ok) { alert('系统配置已保存！'); fetchData(); loadDeepLUsage('sys'); } else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
-    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
 }
 
 function openChangePwd() { document.getElementById('newPwdInput').value = ''; document.getElementById('changePwdModal').classList.add('active'); }
