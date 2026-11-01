@@ -44,10 +44,12 @@ Object.keys(DB_FILES).forEach(key => {
         if (key === 'admin') initialData = { password: 'admin888' };
         if (key === 'settings') initialData = { autoLang: true, deeplKey1: '', deeplKey2: '', checkWaitTime: 5, toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成。" } };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
-        if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }];
+        if (key === 'languages') initialData = [
+            { code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, 
+            { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }
+        ];
         if (key === 'tracking') initialData = { interval: 1, maxLogs: 100, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }], logs: [], lastFetchTime: 0 };
         if (key === 'visits') initialData = []; 
-        // 彻底纯净化 crawl 结构
         if (key === 'crawl') initialData = { 
             enabled: false, interval: 30, lastCrawlTime: 0,
             configs: [] 
@@ -55,6 +57,26 @@ Object.keys(DB_FILES).forEach(key => {
         fs.writeFileSync(DB_FILES[key], JSON.stringify(initialData, null, 2));
     }
 });
+
+// 🚨 强制校验 languages.json，防止被清空或损坏
+try {
+    let langs = JSON.parse(fs.readFileSync(DB_FILES.languages, 'utf8'));
+    if (!Array.isArray(langs) || langs.length === 0 || !langs.find(l => l.code === 'zh')) {
+        const defaultLangs = [
+            { code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, 
+            { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }
+        ];
+        fs.writeFileSync(DB_FILES.languages, JSON.stringify(defaultLangs, null, 2));
+        console.log('已自动恢复默认中英文语言配置');
+    }
+} catch (e) {
+    console.error('语言文件读取失败，正在重建...', e);
+    const defaultLangs = [
+        { code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, 
+        { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }
+    ];
+    fs.writeFileSync(DB_FILES.languages, JSON.stringify(defaultLangs, null, 2));
+}
 
 const readDB = (key) => JSON.parse(fs.readFileSync(DB_FILES[key]));
 const writeDB = (key, data) => fs.writeFileSync(DB_FILES[key], JSON.stringify(data, null, 2));
@@ -89,7 +111,6 @@ async function translateText(textArray, targetLang, sourceLang = 'ZH') {
 // ================= 真实采集与追踪逻辑 =================
 const xmlParser = new XMLParser({ ignoreAttributes: false, textNodeName: "_text" });
 
-// 1. 追踪数据自动生成
 async function fetchAndTranslateTracking() {
     try {
         let tracking = readDB('tracking');
@@ -120,7 +141,6 @@ async function fetchAndTranslateTracking() {
     } catch (e) { console.error('追踪生成失败', e); }
 }
 
-// 2. 真实文章采集 (支持多源、独立条数、JSON/RSS 自动识别、按需翻译)
 async function crawlNews(isManual = false) {
     let config = readDB('crawl');
     const now = Date.now();
@@ -143,9 +163,7 @@ async function crawlNews(isManual = false) {
 
     for (let cfg of configs) {
         try {
-            const response = await axios({ 
-                url: cfg.url, method: 'GET', timeout: 15000 
-            });
+            const response = await axios({ url: cfg.url, method: 'GET', timeout: 15000 });
             
             let rawList = [];
             const contentType = response.headers['content-type'] || '';
@@ -165,9 +183,7 @@ async function crawlNews(isManual = false) {
             if (!Array.isArray(rawList)) continue;
 
             let count = 0;
-            // 核心：只使用该源自己配置的 limit，如果没有则兜底为 10 条
             const currentLimit = cfg.limit ? Number(cfg.limit) : 10;
-            
             const sourceLangUpper = (cfg.sourceLang || 'EN').toUpperCase();
             const sourceLangLower = sourceLangUpper.toLowerCase();
 
@@ -201,11 +217,9 @@ async function crawlNews(isManual = false) {
                 const groupId = uuidv4();
                 const isoTime = new Date(pubDate).toISOString();
 
-                // 存入原语种
                 articles.push({ id: uuidv4(), groupId, lang: sourceLangLower, type, title, summary, content, coverUrl, author, time: isoTime });
-                existingTitles.add(title); // 实时加入去重集合，防止不同源采到同一篇
+                existingTitles.add(title); 
 
-                // 存入目标翻译语种
                 const targetLangs = cfg.targetLangs || [];
                 for (let l of targetLangs) {
                     if (l === sourceLangLower) continue; 
@@ -321,7 +335,6 @@ app.post('/api/admin/crawl/now', auth, async (req, res) => {
     try { res.json(await crawlNews(true)); } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
-// 只保留开启状态和间隔时间
 app.put('/api/admin/crawl', auth, (req, res) => {
     let crawl = readDB('crawl');
     if (req.body.enabled !== undefined) crawl.enabled = req.body.enabled;
@@ -329,7 +342,6 @@ app.put('/api/admin/crawl', auth, (req, res) => {
     writeDB('crawl', crawl); res.json({ success: true });
 });
 
-// 采集源 CRUD API
 app.post('/api/admin/crawl/source', auth, (req, res) => {
     let crawl = readDB('crawl');
     if (!crawl.configs) crawl.configs = [];
@@ -348,6 +360,29 @@ app.delete('/api/admin/crawl/source/:id', auth, (req, res) => {
     let crawl = readDB('crawl');
     crawl.configs = (crawl.configs || []).filter(c => c.id !== req.params.id);
     writeDB('crawl', crawl); res.json({ success: true });
+});
+
+// 语言管理 API (补全)
+app.post('/api/admin/languages', auth, (req, res) => { 
+    const langs = readDB('languages'); 
+    langs.push({ ...req.body, active: true, dict: {} }); 
+    writeDB('languages', langs); 
+    res.json({ success: true }); 
+});
+app.put('/api/admin/languages/:code', auth, (req, res) => {
+    const langs = readDB('languages');
+    const idx = langs.findIndex(l => l.code === req.params.code);
+    if (idx > -1) {
+        langs[idx] = { ...langs[idx], ...req.body };
+        writeDB('languages', langs);
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: 'Not found' });
+    }
+});
+app.delete('/api/admin/languages/:code', auth, (req, res) => {
+    writeDB('languages', readDB('languages').filter(l => l.code !== req.params.code));
+    res.json({ success: true });
 });
 
 app.post('/api/admin/categories', auth, (req, res) => { const cats = readDB('categories'); cats.push(req.body); writeDB('categories', cats); res.json({ success: true }); });
