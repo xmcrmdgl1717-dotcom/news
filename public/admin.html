@@ -36,7 +36,6 @@
 </head>
 <body class="h-screen flex overflow-hidden">
 
-    <!-- 修复登录闪烁：默认隐藏，由底部脚本决定是否显示 -->
     <div id="loginOverlay" class="absolute inset-0 bg-black/80 z-50 flex items-center justify-center backdrop-blur-sm" style="display: none;">
         <div class="card p-8 w-96 text-center">
             <h2 class="text-2xl font-bold mb-6" style="color: var(--cms-accent);">ChainSafe CMS</h2>
@@ -185,35 +184,37 @@
                 </div>
             </div>
 
-            <!-- 文章采集 -->
+            <!-- 🚨 改造后的文章采集 -->
             <div id="tab-crawl" class="content-section">
                 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <!-- 左侧配置区 -->
                     <div class="card p-6 h-fit">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="font-bold text-lg text-blue-600">采集源管理</h3>
+                            <h3 class="font-bold text-lg text-blue-600">独立采集源管理</h3>
                             <button onclick="openCrawlSourceModal()" class="px-3 py-1.5 bg-blue-100 text-blue-700 text-sm font-bold rounded hover:bg-blue-200">➕ 添加采集源</button>
                         </div>
-                        <p class="text-xs text-gray-500 mb-4">支持添加多个不同站点的 RSS/JSON 源，系统会自动处理并翻译。每个源完全独立配置条数和封面。</p>
+                        <p class="text-xs text-gray-500 mb-4">每个源完全独立配置，直接点击对应源的“立刻采集”即可根据其独立条数抓取并翻译。</p>
                         
-                        <div class="space-y-3 mb-6" id="crawlSourceList"></div>
+                        <!-- 独立卡片列表 -->
+                        <div class="space-y-4 mb-6" id="crawlSourceList"></div>
 
-                        <div class="flex items-center gap-4 mb-4 flex-wrap bg-gray-50 dark:bg-slate-800 p-4 rounded-lg">
+                        <div class="flex items-center gap-4 mb-4 flex-wrap bg-gray-50 dark:bg-slate-800 p-4 rounded-lg border" style="border-color: var(--cms-border);">
                             <label class="flex items-center gap-2 cursor-pointer">
                                 <input type="checkbox" id="crawlEnabled" class="w-5 h-5 accent-[#f0b90b]">
-                                <span class="font-bold text-sm">启用自动采集</span>
+                                <span class="font-bold text-sm">开启全自动采集</span>
                             </label>
                             <div class="flex items-center gap-2">
                                 <span class="text-sm">每</span>
                                 <input type="number" id="crawlInterval" class="input w-20 p-1 text-sm" value="30" min="5">
-                                <span class="text-sm">分钟采集一次</span>
+                                <span class="text-sm">分钟采集全部源</span>
                             </div>
                         </div>
                         <div class="flex gap-2">
-                            <button onclick="saveCrawlConfig()" class="px-6 py-2 rounded font-bold text-white bg-blue-600 hover:bg-blue-700">保存自动采集设置</button>
-                            <button onclick="crawlNow()" id="btnCrawlNow" class="px-6 py-2 rounded font-bold text-white bg-green-600 hover:bg-green-700">立刻执行采集</button>
+                            <button onclick="saveCrawlConfig()" class="px-6 py-2 rounded font-bold text-white bg-blue-600 hover:bg-blue-700">保存自动设置</button>
                         </div>
                     </div>
 
+                    <!-- 右侧列表区 -->
                     <div class="card p-6 overflow-y-auto" style="max-height: calc(100vh - 150px);">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="font-bold text-lg text-gray-800">已采集文章</h3>
@@ -378,21 +379,15 @@
     
     <div id="changePwdModal" class="modal"><div class="card p-6 w-96"><h3 class="font-bold text-lg mb-4">修改密码</h3><input type="password" id="newPwdInput" placeholder="新密码" class="input mb-4"><div class="flex gap-2"><button onclick="savePassword()" class="flex-1 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存</button><button onclick="document.getElementById('changePwdModal').classList.remove('active')" class="flex-1 py-2 rounded font-bold" style="background-color: var(--cms-border);">取消</button></div></div></div>
 
-    <!-- 采集源配置弹窗 -->
+    <!-- 🚨 采集源配置弹窗 (已去掉源语言) -->
     <div id="crawlSourceModal" class="modal">
         <div class="card p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
             <h3 class="font-bold text-lg mb-4" style="color: var(--cms-accent);" id="crawlModalTitle">添加采集源</h3>
             <input type="hidden" id="crawlSourceId">
             <div class="flex-1 overflow-y-auto pr-2 space-y-4">
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源名称</label>
-                        <input type="text" id="crawlSourceName" class="input" placeholder="如: Cointelegraph">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源语言</label>
-                        <select id="crawlSourceLang" class="input"></select>
-                    </div>
+                <div>
+                    <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源名称</label>
+                    <input type="text" id="crawlSourceName" class="input" placeholder="如: Cointelegraph">
                 </div>
                 <div class="grid grid-cols-3 gap-4">
                     <div class="col-span-2">
