@@ -36,12 +36,12 @@ const BASE_DICT = {
     safariTitle: "请使用 Safari 浏览器打开", safariDesc: "为了您的安全请使用苹果官方 Safari 打开", copyBtn: "复制当前链接", copied: "已复制"
 };
 
-// 初始化
+// 初始化数据文件
 Object.keys(DB_FILES).forEach(key => {
     if (!fs.existsSync(DB_FILES[key])) {
         let initialData = [];
         if (key === 'admin') initialData = { password: 'admin888' };
-        if (key === 'settings') initialData = { autoLang: true, deeplKey1: '', deeplKey2: '', checkWaitTime: 5, toolDesc: { zh: "* 本模块为前端安全演示UI。" } };
+        if (key === 'settings') initialData = { autoLang: true, deeplKey1: '', deeplKey2: '', checkWaitTime: 5, toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成。" } };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
         if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }];
         if (key === 'tracking') initialData = { interval: 1, maxLogs: 100, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }], logs: [], lastFetchTime: 0 };
@@ -74,7 +74,6 @@ async function translateText(textArray, targetLang, sourceLang = 'ZH') {
     const settings = readDB('settings');
     const keys = [settings.deeplKey1, settings.deeplKey2].filter(k => k && k.trim() !== '');
     
-    // 如果没有配置 Key，直接返回原文本
     if (keys.length === 0) return textArray; 
     
     const apiKey = keys[Math.floor(Math.random() * keys.length)];
@@ -92,14 +91,13 @@ async function translateText(textArray, targetLang, sourceLang = 'ZH') {
         const response = await axios.post(url, params, { headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
         return response.data.translations.map(t => t.text);
     } catch (error) { 
-        // 翻译失败，抛出错误，由调用方处理
         throw new Error(error.response?.data?.message || 'DeepL 翻译请求失败'); 
     }
 }
 
-// ================= 核心采集与追踪 =================
+// ================= 真实采集与追踪逻辑 =================
 
-// 1. 追踪数据生成
+// 1. 追踪数据自动生成
 async function fetchAndTranslateTracking() {
     try {
         let tracking = readDB('tracking');
@@ -110,23 +108,20 @@ async function fetchAndTranslateTracking() {
         const sources = tracking.sources || [];
         if (sources.length === 0) return;
 
-        const source = sources[Math.floor(Math.random() * sources.length)];
         const titles = ["Lazarus Group", "某 DeFi 攻击者", "未知巨鲸地址", "跨链桥攻击者"];
         const addrs = ["0x098B716B8Aaf21512996dC57EB0615e2383E2f96", "0xFb3bD022D5DAcF95EFFcf249C0b79f7eDc08cD22"];
         
         const newTitle = titles[Math.floor(Math.random() * titles.length)] + " " + Math.floor(Math.random()*1000);
         
-        // 初始化标题对象，确保默认有英文(zh即代表默认语种)
         const titleTranslations = { en: newTitle, zh: newTitle };
         
-        // 尝试翻译到其他启用的语言
         const langs = readDB('languages').filter(l => l.active && l.code !== 'zh' && l.code !== 'en');
         for (let l of langs) {
             try {
                 const result = await translateText([newTitle], l.code, 'EN');
                 titleTranslations[l.code] = result[0];
             } catch (e) { 
-                titleTranslations[l.code] = null; // 翻译失败存 null
+                titleTranslations[l.code] = null; 
             }
         }
 
@@ -151,17 +146,15 @@ async function crawlNews(isManual = false) {
 
     try {
         const codeObj = JSON.parse(config.codeConfig);
-        // 发起真实的 HTTP 请求
         const response = await axios({ 
             url: codeObj.url, 
             method: codeObj.method || 'GET', 
             headers: codeObj.headers || {},
-            timeout: 10000 // 10秒超时
+            timeout: 10000 
         });
         
         let rawList = response.data;
         
-        // 兼容不同的数据结构
         if (rawList.Data && Array.isArray(rawList.Data)) rawList = rawList.Data;
         else if (rawList.news && Array.isArray(rawList.news)) rawList = rawList.news;
         else if (rawList.articles && Array.isArray(rawList.articles)) rawList = rawList.articles;
@@ -179,11 +172,9 @@ async function crawlNews(isManual = false) {
         for (let item of rawList) {
             if (count >= config.limit) break;
 
-            // 获取标题
             const title = item[codeObj.mapping.title];
             if (!title || existingTitles.has(title)) continue; 
 
-            // 提取其他字段
             const summary = item[codeObj.mapping.summary] || '';
             const content = item[codeObj.mapping.content] || `<p>${summary}</p>`;
             const coverUrl = item[codeObj.mapping.coverUrl] || 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80';
@@ -199,15 +190,12 @@ async function crawlNews(isManual = false) {
             const type = codeObj.mapping.type || 'hack'; 
             const groupId = uuidv4();
 
-            // 先存入默认语种（采集来的通常为英文）
             articles.push({ id: uuidv4(), groupId, lang: 'en', type, title, summary, content, coverUrl, author, time: new Date().toISOString() });
 
-            // 尝试自动翻译
             try {
                 const langs = readDB('languages').filter(l => l.active && l.code !== 'en');
                 for (let l of langs) {
-                    // 翻译到中文等
-                    const sourceLang = 'EN'; // 采集源为英文
+                    const sourceLang = 'EN'; 
                     const tTitle = await translateText([title], l.code, sourceLang);
                     const tSummary = await translateText([summary], l.code, sourceLang);
                     const tContent = await translateText([content], l.code, sourceLang);
@@ -233,12 +221,10 @@ async function crawlNews(isManual = false) {
     }
 }
 
-// 定时任务（每分钟执行）
 setInterval(() => {
     if (readDB('tracking').interval > 0) fetchAndTranslateTracking();
     if (readDB('crawl').enabled) crawlNews();
 }, 60000);
-
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.text({ type: 'text/plain' })); 
@@ -260,7 +246,6 @@ app.get('/api/articles', (req, res) => {
 });
 app.get('/api/articles/:id', (req, res) => { res.json(readDB('articles').find(a => a.id === req.params.id) || null); });
 
-// 前台获取追踪数据（过滤掉没有当前语言翻译的）
 app.get('/api/tracking', (req, res) => {
     const tracking = readDB('tracking');
     if (Date.now() - (tracking.lastFetchTime || 0) > (tracking.interval * 60000)) {
@@ -269,10 +254,8 @@ app.get('/api/tracking', (req, res) => {
     const lang = req.query.lang || 'en';
     let logs = readDB('tracking').logs || [];
     
-    // 核心过滤逻辑：如果没有当前语言的翻译，就不展示
     logs = logs.filter(l => l.title && l.title[lang]);
     
-    // 返回给前端的数据只保留当前语言的标题
     res.json(logs.map(l => ({ 
         id: l.id, 
         address: l.address, 
@@ -281,7 +264,6 @@ app.get('/api/tracking', (req, res) => {
     })).slice(0, 20));
 });
 
-// 追踪埋点
 app.post('/api/track/visit', (req, res) => {
     const { ip, country, os, browser, lang, device } = req.body;
     const visits = readDB('visits');
