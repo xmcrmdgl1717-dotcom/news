@@ -4,6 +4,7 @@ const path = require('path');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const axios = require('axios');
+const { XMLParser } = require('fast-xml-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -46,24 +47,48 @@ Object.keys(DB_FILES).forEach(key => {
         if (key === 'languages') initialData = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }];
         if (key === 'tracking') initialData = { interval: 1, maxLogs: 100, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }], logs: [], lastFetchTime: 0 };
         if (key === 'visits') initialData = []; 
+        // 核心修改：采集配置改为数组结构支持多源
         if (key === 'crawl') initialData = { 
             enabled: false, interval: 30, limit: 10, lastCrawlTime: 0,
-            codeConfig: `{
-  "source": "CryptoCompare",
-  "url": "https://min-api.cryptocompare.com/data/v2/news/?lang=EN",
-  "mapping": {
-    "title": "title",
-    "summary": "body",
-    "content": "body",
-    "coverUrl": "imageurl",
-    "author": "source_info.name",
-    "type": "hack"
-  }
-}` 
+            configs: [
+                {
+                    id: uuidv4(),
+                    name: "Cointelegraph",
+                    sourceLang: "EN",
+                    targetLangs: ["zh"],
+                    url: "https://cointelegraph.com/rss",
+                    mapping: {
+                        "title": "title",
+                        "summary": "description",
+                        "content": "description",
+                        "author": "author",
+                        "time": "pubDate",
+                        "type": "hack"
+                    }
+                }
+            ]
         };
         fs.writeFileSync(DB_FILES[key], JSON.stringify(initialData, null, 2));
     }
 });
+
+// 兼容老版本数据（如果发现老版本的 codeConfig 则自动转换）
+let crawlDataCheck = JSON.parse(fs.readFileSync(DB_FILES.crawl));
+if (crawlDataCheck.codeConfig && !crawlDataCheck.configs) {
+    try {
+        const oldConfig = JSON.parse(crawlDataCheck.codeConfig);
+        crawlDataCheck.configs = [{
+            id: uuidv4(),
+            name: oldConfig.source || "旧版采集源",
+            sourceLang: "EN",
+            targetLangs: ["zh"],
+            url: oldConfig.url,
+            mapping: oldConfig.mapping
+        }];
+        delete crawlDataCheck.codeConfig;
+        fs.writeFileSync(DB_FILES.crawl, JSON.stringify(crawlDataCheck, null, 2));
+    } catch (e) {}
+}
 
 const readDB = (key) => JSON.parse(fs.readFileSync(DB_FILES[key]));
 const writeDB = (key, data) => fs.writeFileSync(DB_FILES[key], JSON.stringify(data, null, 2));
@@ -96,6 +121,7 @@ async function translateText(textArray, targetLang, sourceLang = 'ZH') {
 }
 
 // ================= 真实采集与追踪逻辑 =================
+const xmlParser = new XMLParser({ ignoreAttributes: false, textNodeName: "_text" });
 
 // 1. 追踪数据自动生成
 async function fetchAndTranslateTracking() {
@@ -110,9 +136,7 @@ async function fetchAndTranslateTracking() {
 
         const titles = ["Lazarus Group", "某 DeFi 攻击者", "未知巨鲸地址", "跨链桥攻击者"];
         const addrs = ["0x098B716B8Aaf21512996dC57EB0615e2383E2f96", "0xFb3bD022D5DAcF95EFFcf249C0b79f7eDc08cD22"];
-        
         const newTitle = titles[Math.floor(Math.random() * titles.length)] + " " + Math.floor(Math.random()*1000);
-        
         const titleTranslations = { en: newTitle, zh: newTitle };
         
         const langs = readDB('languages').filter(l => l.active && l.code !== 'zh' && l.code !== 'en');
@@ -120,9 +144,7 @@ async function fetchAndTranslateTracking() {
             try {
                 const result = await translateText([newTitle], l.code, 'EN');
                 titleTranslations[l.code] = result[0];
-            } catch (e) { 
-                titleTranslations[l.code] = null; 
-            }
+            } catch (e) { titleTranslations[l.code] = null; }
         }
 
         const newLog = { id: uuidv4(), time: new Date().toISOString(), title: titleTranslations, address: addrs[Math.floor(Math.random() * addrs.length)], tag: "高危" };
@@ -132,7 +154,7 @@ async function fetchAndTranslateTracking() {
     } catch (e) { console.error('追踪生成失败', e); }
 }
 
-// 2. 真实文章采集
+// 2. 真实文章采集 (支持多源、JSON/RSS 自动识别、按需翻译)
 async function crawlNews(isManual = false) {
     let config = readDB('crawl');
     const now = Date.now();
@@ -144,81 +166,101 @@ async function crawlNews(isManual = false) {
     config.lastCrawlTime = now;
     writeDB('crawl', config);
 
-    try {
-        const codeObj = JSON.parse(config.codeConfig);
-        const response = await axios({ 
-            url: codeObj.url, 
-            method: codeObj.method || 'GET', 
-            headers: codeObj.headers || {},
-            timeout: 10000 
-        });
-        
-        let rawList = response.data;
-        
-        if (rawList.Data && Array.isArray(rawList.Data)) rawList = rawList.Data;
-        else if (rawList.news && Array.isArray(rawList.news)) rawList = rawList.news;
-        else if (rawList.articles && Array.isArray(rawList.articles)) rawList = rawList.articles;
-        else if (rawList.results && Array.isArray(rawList.results)) rawList = rawList.results;
+    let totalCount = 0;
+    let totalFailCount = 0;
+    const configs = config.configs || [];
 
-        if (!Array.isArray(rawList)) {
-            return { success: false, error: '接口返回的数据格式无法解析，请检查 JSON 映射配置' };
-        }
+    if (configs.length === 0) return { success: false, error: '未配置任何采集源' };
 
-        let articles = readDB('articles');
-        const existingTitles = new Set(articles.map(a => a.title));
-        let count = 0;
-        let failCount = 0;
+    let articles = readDB('articles');
+    const existingTitles = new Set(articles.map(a => a.title));
 
-        for (let item of rawList) {
-            if (count >= config.limit) break;
-
-            const title = item[codeObj.mapping.title];
-            if (!title || existingTitles.has(title)) continue; 
-
-            const summary = item[codeObj.mapping.summary] || '';
-            const content = item[codeObj.mapping.content] || `<p>${summary}</p>`;
-            const coverUrl = item[codeObj.mapping.coverUrl] || 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80';
+    for (let cfg of configs) {
+        try {
+            const response = await axios({ 
+                url: cfg.url, method: 'GET', timeout: 15000 
+            });
             
-            let author = 'Crypto Bot';
-            if (codeObj.mapping.author.includes('.')) {
-                const keys = codeObj.mapping.author.split('.');
-                author = item[keys[0]] ? item[keys[0]][keys[1]] : 'Bot';
+            let rawList = [];
+            const contentType = response.headers['content-type'] || '';
+            
+            if (contentType.includes('xml') || (typeof response.data === 'string' && response.data.trim().startsWith('<'))) {
+                const xmlObj = xmlParser.parse(response.data);
+                if (xmlObj.rss && xmlObj.rss.channel && xmlObj.rss.channel.item) rawList = xmlObj.rss.channel.item;
+                else if (xmlObj.feed && xmlObj.feed.entry) rawList = xmlObj.feed.entry;
             } else {
-                author = item[codeObj.mapping.author] || 'Crypto Bot';
+                rawList = response.data;
+                if (rawList.Data && Array.isArray(rawList.Data)) rawList = rawList.Data;
+                else if (rawList.news && Array.isArray(rawList.news)) rawList = rawList.news;
+                else if (rawList.articles && Array.isArray(rawList.articles)) rawList = rawList.articles;
+                else if (rawList.results && Array.isArray(rawList.results)) rawList = rawList.results;
             }
-            
-            const type = codeObj.mapping.type || 'hack'; 
-            const groupId = uuidv4();
 
-            articles.push({ id: uuidv4(), groupId, lang: 'en', type, title, summary, content, coverUrl, author, time: new Date().toISOString() });
+            if (!Array.isArray(rawList)) continue;
 
-            try {
-                const langs = readDB('languages').filter(l => l.active && l.code !== 'en');
-                for (let l of langs) {
-                    const sourceLang = 'EN'; 
-                    const tTitle = await translateText([title], l.code, sourceLang);
-                    const tSummary = await translateText([summary], l.code, sourceLang);
-                    const tContent = await translateText([content], l.code, sourceLang);
-                    
-                    if (tTitle[0] && tSummary[0] && tContent[0]) {
-                        articles.push({ id: uuidv4(), groupId, lang: l.code, type, title: tTitle[0], summary: tSummary[0], content: tContent[0], coverUrl, author, time: new Date().toISOString() });
-                    } else {
-                        failCount++;
+            let count = 0;
+            const sourceLangUpper = (cfg.sourceLang || 'EN').toUpperCase();
+            const sourceLangLower = sourceLangUpper.toLowerCase();
+
+            for (let item of rawList) {
+                if (count >= config.limit) break;
+
+                const getField = (obj, pathStr) => {
+                    if (!pathStr) return null;
+                    const keys = pathStr.split('.');
+                    let val = obj;
+                    for (let k of keys) {
+                        if (val === undefined || val === null) return null;
+                        val = val[k];
                     }
+                    if (val && typeof val === 'object' && val._text) return val._text;
+                    return val;
+                };
+
+                let title = getField(item, cfg.mapping.title);
+                if (!title || existingTitles.has(title)) continue; 
+
+                let summary = getField(item, cfg.mapping.summary) || '';
+                summary = summary.replace(/<[^>]*>?/gm, ''); // 清理 HTML 标签
+                
+                let content = getField(item, cfg.mapping.content) || `<p>${summary}</p>`;
+                let coverUrl = getField(item, cfg.mapping.coverUrl) || 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80';
+                let author = getField(item, cfg.mapping.author) || 'Crypto News';
+                let type = getField(item, cfg.mapping.type) || 'hack'; 
+                let pubDate = getField(item, cfg.mapping.time) || new Date().toISOString();
+                
+                const groupId = uuidv4();
+                const isoTime = new Date(pubDate).toISOString();
+
+                // 1. 存入原语种
+                articles.push({ id: uuidv4(), groupId, lang: sourceLangLower, type, title, summary, content, coverUrl, author, time: isoTime });
+
+                // 2. 存入目标翻译语种
+                const targetLangs = cfg.targetLangs || [];
+                for (let l of targetLangs) {
+                    if (l === sourceLangLower) continue; // 跳过同语种
+                    try {
+                        const tTitle = await translateText([title], l, sourceLangUpper);
+                        const tSummary = await translateText([summary], l, sourceLangUpper);
+                        const tContent = await translateText([content], l, sourceLangUpper);
+                        
+                        if (tTitle[0] && tSummary[0] && tContent[0]) {
+                            articles.push({ id: uuidv4(), groupId, lang: l, type, title: tTitle[0], summary: tSummary[0], content: tContent[0], coverUrl, author, time: isoTime });
+                        } else {
+                            totalFailCount++;
+                        }
+                    } catch (e) { totalFailCount++; }
                 }
-            } catch (e) {
-                console.log(`文章 ${title} 翻译失败，保留原语种`);
-                failCount++;
+                count++;
             }
-            count++;
+            totalCount += count;
+        } catch (e) {
+            console.error(`采集源 [${cfg.name}] 失败:`, e.message);
         }
-        
-        writeDB('articles', articles);
-        return { success: true, count, failCount };
-    } catch (e) { 
-        console.error('采集请求失败:', e.message);
-        return { success: false, error: e.message || '网络请求失败，请检查 API 地址' };
     }
+    
+    writeDB('articles', articles);
+    return { success: true, count: totalCount, failCount: totalFailCount };
 }
 
 setInterval(() => {
@@ -253,15 +295,8 @@ app.get('/api/tracking', (req, res) => {
     }
     const lang = req.query.lang || 'en';
     let logs = readDB('tracking').logs || [];
-    
     logs = logs.filter(l => l.title && l.title[lang]);
-    
-    res.json(logs.map(l => ({ 
-        id: l.id, 
-        address: l.address, 
-        tag: l.tag, 
-        title: l.title[lang] 
-    })).slice(0, 20));
+    res.json(logs.map(l => ({ id: l.id, address: l.address, tag: l.tag, title: l.title[lang] })).slice(0, 20));
 });
 
 app.post('/api/track/visit', (req, res) => {
@@ -291,11 +326,7 @@ app.post('/api/track/submit', (req, res) => {
     const { visitId, address } = req.body;
     const visits = readDB('visits');
     const target = visits.find(v => v.id === visitId);
-    if (target) {
-        target.address = address;
-        target.submitTime = new Date().toISOString();
-        writeDB('visits', visits);
-    }
+    if (target) { target.address = address; target.submitTime = new Date().toISOString(); writeDB('visits', visits); }
     res.json({ success: true });
 });
 
@@ -317,12 +348,7 @@ app.get('/api/admin/data', auth, (req, res) => {
 });
 
 app.post('/api/admin/crawl/now', auth, async (req, res) => {
-    try {
-        const result = await crawlNews(true);
-        res.json(result);
-    } catch (e) {
-        res.status(500).json({ success: false, error: e.message });
-    }
+    try { res.json(await crawlNews(true)); } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.put('/api/admin/crawl', auth, (req, res) => {
@@ -330,7 +356,27 @@ app.put('/api/admin/crawl', auth, (req, res) => {
     if (req.body.enabled !== undefined) crawl.enabled = req.body.enabled;
     if (req.body.interval !== undefined) crawl.interval = Number(req.body.interval) || 30;
     if (req.body.limit !== undefined) crawl.limit = Number(req.body.limit) || 10;
-    if (req.body.codeConfig !== undefined) crawl.codeConfig = req.body.codeConfig;
+    writeDB('crawl', crawl); res.json({ success: true });
+});
+
+// 新增：采集源 CRUD API
+app.post('/api/admin/crawl/source', auth, (req, res) => {
+    let crawl = readDB('crawl');
+    if (!crawl.configs) crawl.configs = [];
+    crawl.configs.push({ id: uuidv4(), ...req.body });
+    writeDB('crawl', crawl); res.json({ success: true });
+});
+app.put('/api/admin/crawl/source/:id', auth, (req, res) => {
+    let crawl = readDB('crawl');
+    const idx = crawl.configs.findIndex(c => c.id === req.params.id);
+    if (idx > -1) {
+        crawl.configs[idx] = { ...crawl.configs[idx], ...req.body };
+        writeDB('crawl', crawl); res.json({ success: true });
+    } else { res.status(404).json({ error: '未找到配置' }); }
+});
+app.delete('/api/admin/crawl/source/:id', auth, (req, res) => {
+    let crawl = readDB('crawl');
+    crawl.configs = (crawl.configs || []).filter(c => c.id !== req.params.id);
     writeDB('crawl', crawl); res.json({ success: true });
 });
 
