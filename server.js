@@ -81,16 +81,26 @@ async function translateText(textArray, targetLang, sourceLang = null) {
     const settings = readDB('settings');
     const keys = [settings.deeplKey1, settings.deeplKey2].filter(k => k && k.trim() !== '');
     
-    if (keys.length === 0) return textArray; 
+    // 🚨 核心修复：如果没有配置 Key，直接报错阻断，不再静默返回原文本
+    if (keys.length === 0) {
+        throw new Error('未配置 DeepL API Key，请先前往【系统设置】填写 Key 后再试。');
+    }
     
     const apiKey = keys[Math.floor(Math.random() * keys.length)];
     const isFree = apiKey.endsWith(':fx');
     const url = isFree ? 'https://api-free.deepl.com/v2/translate' : 'https://api.deepl.com/v2/translate';
+    
+    // 🚨 核心修复：更完善的国家代码映射
     let targetCode = targetLang.split('-')[0].toUpperCase();
-    if (targetCode === 'ZH') targetCode = 'ZH-HANS';
-    if (targetCode === 'EN') targetCode = 'EN-US';
+    if (targetCode === 'ZH') targetCode = 'ZH-HANS'; // 中文
+    if (targetCode === 'EN') targetCode = 'EN-US';   // 英文
+
     const params = new URLSearchParams();
-    textArray.forEach(text => params.append('text', text || ''));
+    // 清理文本中的特殊 emoji 或多余符号，防止 DeepL 报错 400
+    textArray.forEach(text => {
+        let cleanText = (text || '').toString().replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, '').trim();
+        params.append('text', cleanText || ' '); // 防止空字符串报错
+    });
     params.append('target_lang', targetCode);
     if (sourceLang) params.append('source_lang', sourceLang.toUpperCase());
     
@@ -98,7 +108,7 @@ async function translateText(textArray, targetLang, sourceLang = null) {
         const response = await axios.post(url, params, { headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
         return response.data.translations.map(t => t.text);
     } catch (error) { 
-        throw new Error(error.response?.data?.message || 'DeepL 翻译请求失败'); 
+        throw new Error(error.response?.data?.message || 'DeepL 翻译请求失败，请检查 Key 额度或网络'); 
     }
 }
 
@@ -140,15 +150,12 @@ async function crawlNews(isManual = false, configId = null, isAutoGlobal = false
     let config = readDB('crawl');
     const now = Date.now();
     
-    // 自动采集逻辑判断
     if (!isManual) {
         if (isAutoGlobal) {
-            // 全局自动：检查全局时间
             if (now - (config.lastCrawlTime || 0) < (config.interval * 60000)) return { success: false, error: '全局采集未到时间' };
             config.lastCrawlTime = now;
             writeDB('crawl', config);
         } else {
-            // 单源自动：直接采，因为在外层循环里已经判断过时间和独立开启了
             if (configId) {
                 const idx = config.configs.findIndex(c => c.id === configId);
                 if (idx > -1) {
@@ -161,7 +168,6 @@ async function crawlNews(isManual = false, configId = null, isAutoGlobal = false
 
     let totalCount = 0;
     let totalFailCount = 0;
-    // 过滤出要执行的 configs
     const configs = (config.configs || []).filter(c => !configId || c.id === configId);
 
     if (configs.length === 0) return { success: false, error: '未配置任何采集源' };
@@ -231,7 +237,6 @@ async function crawlNews(isManual = false, configId = null, isAutoGlobal = false
                 const targetLangs = cfg.targetLangs || [];
                 for (let l of targetLangs) {
                     try {
-                        // 自动识别源语言翻译
                         const tTitle = await translateText([title], l);
                         const tSummary = await translateText([summary], l);
                         const tContent = await translateText([content], l);
@@ -263,17 +268,13 @@ setInterval(() => {
     const crawl = readDB('crawl');
     const now = Date.now();
 
-    // 1. 如果全局全自动开启（图三权限最大）
     if (crawl.enabled) {
         if (now - (crawl.lastCrawlTime || 0) >= (crawl.interval * 60000)) {
             crawlNews(false, null, true);
         }
-    } 
-    // 2. 如果全局全自动关闭，检查单源独立自动采集
-    else {
+    } else {
         (crawl.configs || []).forEach(cfg => {
             if (cfg.autoEnabled) {
-                // 如果该源距离上次采集超过了全局设定的间隔，则采集
                 if (now - (cfg.lastCrawlTime || 0) >= (crawl.interval * 60000)) {
                     crawlNews(false, cfg.id, false);
                 }
@@ -361,7 +362,7 @@ app.get('/api/admin/data', auth, (req, res) => {
     });
 });
 
-// 🚨 补全：多语言字典一键翻译
+// 🚨 多语言字典一键翻译
 app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
     const { targetLang } = req.body;
     const langs = readDB('languages');
@@ -371,10 +372,14 @@ app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
     try {
         const keys = Object.keys(BASE_DICT);
         const values = Object.values(BASE_DICT);
-        // 将中文的 BASE_DICT 翻译成目标语言
-        const translatedValues = await translateText(values, targetLang, 'ZH');
+        
+        // 让 DeepL 自动识别源语言，翻译成目标国家的语言
+        const translatedValues = await translateText(values, targetLang);
+        
         const newDict = {};
-        keys.forEach((k, i) => { newDict[k] = translatedValues[i]; });
+        keys.forEach((k, i) => { 
+            newDict[k] = translatedValues[i] ? translatedValues[i] : values[i]; 
+        });
 
         langs[langIdx].dict = { ...(langs[langIdx].dict || {}), ...newDict };
         writeDB('languages', langs);
