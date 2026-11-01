@@ -257,12 +257,28 @@
         
         // 处理顶部 LOGO 和网站标题
         const h1El = document.getElementById('siteTitleHeader');
+        let displayTitle = '链安快讯'; // 默认兜底
+
         if (h1El) {
-            if (globalSettings.siteLogo) {
-                h1El.innerHTML = `<img src="${globalSettings.siteLogo}" style="height: 32px; max-width: 200px; object-fit: contain;">`;
+            if (globalSettings.siteLogo && globalSettings.siteLogo.trim() !== '') {
+                // 优先显示后台配置的 Logo
+                h1El.innerHTML = `<img src="${globalSettings.siteLogo.trim()}" style="height: 32px; max-width: 200px; object-fit: contain;">`;
             } else {
-                h1El.innerText = currentLangDict.siteTitle || '链安快讯';
+                // 无 Logo 时，按语言读取后台配置的标题，其次读字典
+                if (globalSettings.siteTitle && globalSettings.siteTitle[currentLang]) {
+                    displayTitle = globalSettings.siteTitle[currentLang];
+                } else if (globalSettings.siteTitle && globalSettings.siteTitle['zh']) {
+                    displayTitle = globalSettings.siteTitle['zh'];
+                } else {
+                    displayTitle = currentLangDict.siteTitle || '链安快讯';
+                }
+                h1El.innerText = displayTitle;
             }
+        }
+
+        // 同步修改浏览器标签页的 title
+        if (document.title) {
+            document.title = displayTitle + (currentLang === 'zh' ? ' - Web3安全资讯' : ' - Web3 Security News');
         }
 
         // 普通 i18n 文本
@@ -286,7 +302,7 @@
             document.getElementById('toolDescText').innerText = globalSettings.toolDesc['zh'];
         }
 
-        // 新增：工具标题多语言覆盖
+        // 工具标题多语言覆盖
         const toolTitleEl = document.querySelector('.tool-title');
         if (toolTitleEl) {
             if (globalSettings.toolTitle && globalSettings.toolTitle[currentLang]) {
@@ -298,7 +314,7 @@
             }
         }
 
-        // 新增：工具输入框Placeholder覆盖
+        // 工具输入框Placeholder覆盖
         const toolPlaceholderEl = document.getElementById('walletAddress');
         if (toolPlaceholderEl) {
             if (globalSettings.toolPlaceholder && globalSettings.toolPlaceholder[currentLang]) {
