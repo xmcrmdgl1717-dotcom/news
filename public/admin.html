@@ -98,11 +98,11 @@
                     <div id="customDateInputs" class="hidden items-center gap-2">
                         <input type="date" id="filterStartDate" class="input p-1 text-xs rounded w-28"> <span>至</span> <input type="date" id="filterEndDate" class="input p-1 text-xs rounded w-28">
                     </div>
-                    <select class="input p-1.5 rounded w-28" id="filterDevice" onchange="applyFilters()"><option value="all">设备 (全部)</option><option value="手机">手机</option><option value="桌面">桌面</option></select>
-                    <select class="input p-1.5 rounded w-28" id="filterCountry" onchange="applyFilters()"><option value="all">国家 (全部)</option><option value="中国">中国</option><option value="日本">日本</option><option value="美国">美国</option></select>
-                    <select class="input p-1.5 rounded w-28" id="filterOS" onchange="applyFilters()"><option value="all">系统 (全部)</option><option value="Windows 10">Windows 10</option><option value="Android">Android</option><option value="iOS">iOS</option><option value="macOS">macOS</option></select>
-                    <select class="input p-1.5 rounded w-28" id="filterBrowser" onchange="applyFilters()"><option value="all">浏览器 (全部)</option><option value="Chrome">Chrome</option><option value="Safari">Safari</option></select>
-                    <select class="input p-1.5 rounded w-28" id="filterLang" onchange="applyFilters()"><option value="all">语言 (全部)</option><option value="zh">中文</option><option value="en">English</option></select>
+                    <select class="input p-1.5 rounded w-28" id="filterDevice" onchange="applyFilters()"><option value="all">设备 (全部)</option></select>
+                    <select class="input p-1.5 rounded w-28" id="filterCountry" onchange="applyFilters()"><option value="all">国家 (全部)</option></select>
+                    <select class="input p-1.5 rounded w-28" id="filterOS" onchange="applyFilters()"><option value="all">系统 (全部)</option></select>
+                    <select class="input p-1.5 rounded w-28" id="filterBrowser" onchange="applyFilters()"><option value="all">浏览器 (全部)</option></select>
+                    <select class="input p-1.5 rounded w-28" id="filterLang" onchange="applyFilters()"><option value="all">语言 (全部)</option></select>
                     <input type="text" id="searchInput" placeholder="搜索..." class="input p-1.5 rounded flex-1 min-w-[150px]" onkeyup="if(event.key==='Enter') applyFilters()">
                     <button onclick="applyFilters()" class="bg-blue-600 text-white px-4 py-1.5 rounded font-bold">搜索</button>
                     <button onclick="resetFilters()" class="bg-gray-200 text-gray-700 px-4 py-1.5 rounded font-bold">重置</button>
