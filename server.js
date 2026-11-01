@@ -89,40 +89,21 @@ async function translateText(textArray, targetLang, sourceLang = null) {
     const isFree = apiKey.endsWith(':fx');
     const url = isFree ? 'https://api-free.deepl.com/v2/translate' : 'https://api.deepl.com/v2/translate';
     
-    // 🚨 智能映射国家代码到 DeepL 支持的语言代码
+    // 智能映射国家代码到 DeepL 支持的语言代码
     let targetCode = targetLang.split('-')[0].toLowerCase();
     const langMap = {
-        'jp': 'ja',  // 日本 -> 日语
-        'kr': 'ko',  // 韩国 -> 韩语
-        'cn': 'zh',  // 中国 -> 中文
-        'zh': 'zh',  
-        'us': 'en',  // 美国 -> 英文
-        'en': 'en',
-        'vn': 'vi',  // 越南 -> 越南语
-        'tw': 'zh',  // 台湾 -> 繁体中文
-        'hk': 'zh',  // 香港 -> 繁体中文
-        'ru': 'ru',  // 俄罗斯
-        'fr': 'fr',  // 法国
-        'de': 'de',  // 德国
-        'es': 'es',  // 西班牙
-        'it': 'it',  // 意大利
-        'pt': 'pt',  // 葡萄牙
-        'br': 'pt',  // 巴西
-        'tr': 'tr',  // 土耳其
-        'id': 'id',  // 印尼
-        'th': 'th'   // 泰国
+        'jp': 'ja', 'kr': 'ko', 'cn': 'zh', 'zh': 'zh', 'us': 'en', 'en': 'en',
+        'vn': 'vi', 'tw': 'zh', 'hk': 'zh', 'ru': 'ru', 'fr': 'fr', 'de': 'de',
+        'es': 'es', 'it': 'it', 'pt': 'pt', 'br': 'pt', 'tr': 'tr', 'id': 'id', 'th': 'th'
     };
     
-    if (langMap[targetCode]) {
-        targetCode = langMap[targetCode];
-    }
+    if (langMap[targetCode]) targetCode = langMap[targetCode];
     
     targetCode = targetCode.toUpperCase();
-    if (targetCode === 'ZH') targetCode = 'ZH-HANS'; // 默认简体中文
-    if (targetCode === 'EN') targetCode = 'EN-US';   // 默认美式英语
+    if (targetCode === 'ZH') targetCode = 'ZH-HANS';
+    if (targetCode === 'EN') targetCode = 'EN-US';
 
     const params = new URLSearchParams();
-    // 清理文本中的特殊 emoji 或多余符号，防止 DeepL 报错 400
     textArray.forEach(text => {
         let cleanText = (text || '').toString().replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, '').trim();
         params.append('text', cleanText || ' '); 
@@ -179,7 +160,6 @@ async function fetchAndTranslateTracking() {
     } catch (e) { console.error('追踪生成失败', e); }
 }
 
-// 采集核心逻辑
 async function crawlNews(isManual = false, configId = null, isAutoGlobal = false) {
     let config = readDB('crawl');
     const now = Date.now();
@@ -263,11 +243,9 @@ async function crawlNews(isManual = false, configId = null, isAutoGlobal = false
                 const groupId = uuidv4();
                 const isoTime = new Date(pubDate).toISOString();
 
-                // 存入原文（标记为 original）
                 articles.push({ id: uuidv4(), groupId, lang: 'original', type, title, summary, content, coverUrl, author, time: isoTime });
                 existingTitles.add(title); 
 
-                // 存入目标翻译语种
                 const targetLangs = cfg.targetLangs || [];
                 for (let l of targetLangs) {
                     try {
@@ -294,7 +272,6 @@ async function crawlNews(isManual = false, configId = null, isAutoGlobal = false
     return { success: true, count: totalCount, failCount: totalFailCount };
 }
 
-// 定时任务：每分钟检查一次
 setInterval(() => {
     const tracking = readDB('tracking');
     if (tracking.interval > 0) fetchAndTranslateTracking();
@@ -396,7 +373,6 @@ app.get('/api/admin/data', auth, (req, res) => {
     });
 });
 
-// 🚨 多语言字典一键翻译
 app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
     const { targetLang } = req.body;
     const langs = readDB('languages');
