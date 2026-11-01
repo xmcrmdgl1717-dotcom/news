@@ -50,15 +50,12 @@ Object.keys(DB_FILES).forEach(key => {
         ];
         if (key === 'tracking') initialData = { interval: 1, maxLogs: 100, sources: [{ name: 'SlowMist', url: 'https://slowmist.com/api' }], logs: [], lastFetchTime: 0 };
         if (key === 'visits') initialData = []; 
-        if (key === 'crawl') initialData = { 
-            enabled: false, interval: 30, lastCrawlTime: 0,
-            configs: [] 
-        };
+        if (key === 'crawl') initialData = { enabled: false, interval: 30, lastCrawlTime: 0, configs: [] };
         fs.writeFileSync(DB_FILES[key], JSON.stringify(initialData, null, 2));
     }
 });
 
-// 强制修复语言文件：确保中英文存在
+// 修复多语言配置
 try {
     let langs = JSON.parse(fs.readFileSync(DB_FILES.languages, 'utf8'));
     let updated = false;
@@ -81,22 +78,18 @@ async function translateText(textArray, targetLang, sourceLang = null) {
     const settings = readDB('settings');
     const keys = [settings.deeplKey1, settings.deeplKey2].filter(k => k && k.trim() !== '');
     
-    if (keys.length === 0) {
-        throw new Error('未配置 DeepL API Key，请先前往【系统设置】填写 Key 后再试。');
-    }
+    if (keys.length === 0) throw new Error('未配置 DeepL API Key');
     
     const apiKey = keys[Math.floor(Math.random() * keys.length)];
     const isFree = apiKey.endsWith(':fx');
     const url = isFree ? 'https://api-free.deepl.com/v2/translate' : 'https://api.deepl.com/v2/translate';
     
-    // 智能映射国家代码到 DeepL 支持的语言代码
     let targetCode = targetLang.split('-')[0].toLowerCase();
     const langMap = {
         'jp': 'ja', 'kr': 'ko', 'cn': 'zh', 'zh': 'zh', 'us': 'en', 'en': 'en',
         'vn': 'vi', 'tw': 'zh', 'hk': 'zh', 'ru': 'ru', 'fr': 'fr', 'de': 'de',
         'es': 'es', 'it': 'it', 'pt': 'pt', 'br': 'pt', 'tr': 'tr', 'id': 'id', 'th': 'th'
     };
-    
     if (langMap[targetCode]) targetCode = langMap[targetCode];
     
     targetCode = targetCode.toUpperCase();
@@ -104,26 +97,32 @@ async function translateText(textArray, targetLang, sourceLang = null) {
     if (targetCode === 'EN') targetCode = 'EN-US';
 
     const params = new URLSearchParams();
+    let totalChars = 0;
     textArray.forEach(text => {
         let cleanText = (text || '').toString().replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}]/gu, '').trim();
-        params.append('text', cleanText || ' '); 
+        params.append('text', cleanText || ' ');
+        totalChars += cleanText.length;
     });
     params.append('target_lang', targetCode);
-    
-    if (sourceLang) {
-        let srcCode = sourceLang.split('-')[0].toLowerCase();
-        if (langMap[srcCode]) srcCode = langMap[srcCode];
-        srcCode = srcCode.toUpperCase();
-        if (srcCode === 'ZH') srcCode = 'ZH';
-        if (srcCode === 'EN') srcCode = 'EN';
-        params.append('source_lang', srcCode);
-    }
+    if (sourceLang) params.append('source_lang', langMap[sourceLang.toLowerCase()] || sourceLang.toUpperCase());
     
     try {
         const response = await axios.post(url, params, { headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
+        
+        // 记录日志
+        if (totalChars > 0) {
+            const logsFile = path.join(DB_DIR, 'translation_logs.json');
+            let logs = [];
+            if (fs.existsSync(logsFile)) { try { logs = JSON.parse(fs.readFileSync(logsFile, 'utf8')); } catch(e){} }
+            const keyName = apiKey.substring(0, 6) + '***' + apiKey.slice(-4);
+            logs.push({ time: new Date().toISOString(), targetLang: targetCode, chars: totalChars, keyName });
+            if (logs.length > 1000) logs = logs.slice(-1000);
+            fs.writeFileSync(logsFile, JSON.stringify(logs, null, 2));
+        }
+        
         return response.data.translations.map(t => t.text);
     } catch (error) { 
-        throw new Error(error.response?.data?.message || 'DeepL 翻译请求失败，请检查 Key 额度或网络'); 
+        throw new Error(error.response?.data?.message || 'DeepL 翻译请求失败'); 
     }
 }
 
@@ -135,7 +134,6 @@ async function fetchAndTranslateTracking() {
         let tracking = readDB('tracking');
         const now = Date.now();
         if (now - (tracking.lastFetchTime || 0) < (tracking.interval * 60000) && tracking.interval > 0) return;
-        
         tracking.lastFetchTime = now;
         const sources = tracking.sources || [];
         if (sources.length === 0) return;
@@ -147,10 +145,7 @@ async function fetchAndTranslateTracking() {
         
         const langs = readDB('languages').filter(l => l.active && l.code !== 'zh' && l.code !== 'en');
         for (let l of langs) {
-            try {
-                const result = await translateText([newTitle], l.code, 'EN');
-                titleTranslations[l.code] = result[0];
-            } catch (e) { titleTranslations[l.code] = null; }
+            try { const result = await translateText([newTitle], l.code, 'EN'); titleTranslations[l.code] = result[0]; } catch (e) { titleTranslations[l.code] = null; }
         }
 
         const newLog = { id: uuidv4(), time: new Date().toISOString(), title: titleTranslations, address: addrs[Math.floor(Math.random() * addrs.length)], tag: "高危" };
@@ -167,23 +162,17 @@ async function crawlNews(isManual = false, configId = null, isAutoGlobal = false
     if (!isManual) {
         if (isAutoGlobal) {
             if (now - (config.lastCrawlTime || 0) < (config.interval * 60000)) return { success: false, error: '全局采集未到时间' };
-            config.lastCrawlTime = now;
-            writeDB('crawl', config);
+            config.lastCrawlTime = now; writeDB('crawl', config);
         } else {
             if (configId) {
                 const idx = config.configs.findIndex(c => c.id === configId);
-                if (idx > -1) {
-                    config.configs[idx].lastCrawlTime = now;
-                    writeDB('crawl', config);
-                }
+                if (idx > -1) { config.configs[idx].lastCrawlTime = now; writeDB('crawl', config); }
             }
         }
     }
 
-    let totalCount = 0;
-    let totalFailCount = 0;
+    let totalCount = 0; let totalFailCount = 0;
     const configs = (config.configs || []).filter(c => !configId || c.id === configId);
-
     if (configs.length === 0) return { success: false, error: '未配置任何采集源' };
 
     let articles = readDB('articles');
@@ -192,7 +181,6 @@ async function crawlNews(isManual = false, configId = null, isAutoGlobal = false
     for (let cfg of configs) {
         try {
             const response = await axios({ url: cfg.url, method: 'GET', timeout: 15000 });
-            
             let rawList = [];
             const contentType = response.headers['content-type'] || '';
             
@@ -209,40 +197,29 @@ async function crawlNews(isManual = false, configId = null, isAutoGlobal = false
             }
 
             if (!Array.isArray(rawList)) continue;
-
             let count = 0;
             const currentLimit = cfg.limit ? Number(cfg.limit) : 10;
 
             for (let item of rawList) {
                 if (count >= currentLimit) break;
-
                 const getField = (obj, pathStr) => {
                     if (!pathStr) return null;
-                    const keys = pathStr.split('.');
-                    let val = obj;
-                    for (let k of keys) {
-                        if (val === undefined || val === null) return null;
-                        val = val[k];
-                    }
+                    const keys = pathStr.split('.'); let val = obj;
+                    for (let k of keys) { if (val === undefined || val === null) return null; val = val[k]; }
                     if (val && typeof val === 'object' && val._text) return val._text;
                     return val;
                 };
 
                 let title = getField(item, cfg.mapping.title);
                 if (!title || existingTitles.has(title)) continue; 
-
-                let summary = getField(item, cfg.mapping.summary) || '';
-                summary = summary.replace(/<[^>]*>?/gm, ''); 
-                
+                let summary = getField(item, cfg.mapping.summary) || ''; summary = summary.replace(/<[^>]*>?/gm, ''); 
                 let content = getField(item, cfg.mapping.content) || `<p>${summary}</p>`;
                 let coverUrl = getField(item, cfg.mapping.coverUrl) || cfg.image || 'https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=400&q=80';
                 let author = getField(item, cfg.mapping.author) || cfg.name || 'Crypto News';
                 let type = getField(item, cfg.mapping.type) || 'hack'; 
                 let pubDate = getField(item, cfg.mapping.time) || new Date().toISOString();
                 
-                const groupId = uuidv4();
-                const isoTime = new Date(pubDate).toISOString();
-
+                const groupId = uuidv4(); const isoTime = new Date(pubDate).toISOString();
                 articles.push({ id: uuidv4(), groupId, lang: 'original', type, title, summary, content, coverUrl, author, time: isoTime });
                 existingTitles.add(title); 
 
@@ -252,46 +229,25 @@ async function crawlNews(isManual = false, configId = null, isAutoGlobal = false
                         const tTitle = await translateText([title], l);
                         const tSummary = await translateText([summary], l);
                         const tContent = await translateText([content], l);
-                        
                         if (tTitle[0] && tSummary[0] && tContent[0]) {
                             articles.push({ id: uuidv4(), groupId, lang: l, type, title: tTitle[0], summary: tSummary[0], content: tContent[0], coverUrl, author, time: isoTime });
-                        } else {
-                            totalFailCount++;
-                        }
+                        } else { totalFailCount++; }
                     } catch (e) { totalFailCount++; }
                 }
                 count++;
             }
             totalCount += count;
-        } catch (e) {
-            console.error(`采集源 [${cfg.name}] 失败:`, e.message);
-        }
+        } catch (e) { console.error(`采集源 [${cfg.name}] 失败:`, e.message); }
     }
-    
     writeDB('articles', articles);
     return { success: true, count: totalCount, failCount: totalFailCount };
 }
 
 setInterval(() => {
-    const tracking = readDB('tracking');
-    if (tracking.interval > 0) fetchAndTranslateTracking();
-    
-    const crawl = readDB('crawl');
-    const now = Date.now();
-
-    if (crawl.enabled) {
-        if (now - (crawl.lastCrawlTime || 0) >= (crawl.interval * 60000)) {
-            crawlNews(false, null, true);
-        }
-    } else {
-        (crawl.configs || []).forEach(cfg => {
-            if (cfg.autoEnabled) {
-                if (now - (cfg.lastCrawlTime || 0) >= (crawl.interval * 60000)) {
-                    crawlNews(false, cfg.id, false);
-                }
-            }
-        });
-    }
+    if (readDB('tracking').interval > 0) fetchAndTranslateTracking();
+    const crawl = readDB('crawl'); const now = Date.now();
+    if (crawl.enabled) { if (now - (crawl.lastCrawlTime || 0) >= (crawl.interval * 60000)) crawlNews(false, null, true); } 
+    else { (crawl.configs || []).forEach(cfg => { if (cfg.autoEnabled && now - (cfg.lastCrawlTime || 0) >= (crawl.interval * 60000)) crawlNews(false, cfg.id, false); }); }
 }, 60000);
 
 app.use(express.json({ limit: '10mb' }));
@@ -316,9 +272,7 @@ app.get('/api/articles/:id', (req, res) => { res.json(readDB('articles').find(a 
 
 app.get('/api/tracking', (req, res) => {
     const tracking = readDB('tracking');
-    if (Date.now() - (tracking.lastFetchTime || 0) > (tracking.interval * 60000)) {
-        fetchAndTranslateTracking();
-    }
+    if (Date.now() - (tracking.lastFetchTime || 0) > (tracking.interval * 60000)) fetchAndTranslateTracking();
     const lang = req.query.lang || 'en';
     let logs = readDB('tracking').logs || [];
     logs = logs.filter(l => l.title && l.title[lang]);
@@ -329,80 +283,86 @@ app.post('/api/track/visit', (req, res) => {
     const { ip, country, os, browser, lang, device } = req.body;
     const visits = readDB('visits');
     const newVisit = { id: uuidv4(), address: '', ip: ip || '未知', country: country || '未知', os: os || '未知', browser: browser || '未知', lang: lang || 'zh', device: device || '桌面', visitTime: new Date().toISOString(), submitTime: null, leaveTime: null, duration: 0, fingerprint: uuidv4().substring(0, 16) };
-    visits.unshift(newVisit);
-    writeDB('visits', visits);
+    visits.unshift(newVisit); writeDB('visits', visits);
     res.json({ success: true, visitId: newVisit.id });
 });
 app.post('/api/track/leave', (req, res) => {
-    let body = req.body;
-    if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) {} }
+    let body = req.body; if (typeof body === 'string') { try { body = JSON.parse(body); } catch (e) {} }
     if (body && body.visitId) {
-        const visits = readDB('visits');
-        const target = visits.find(v => v.id === body.visitId);
+        const visits = readDB('visits'); const target = visits.find(v => v.id === body.visitId);
         if (target && !target.leaveTime) {
-            const now = new Date();
-            target.leaveTime = now.toISOString();
-            target.duration = Math.max(0, Math.floor((now - new Date(target.visitTime)) / 1000));
-            writeDB('visits', visits);
+            const now = new Date(); target.leaveTime = now.toISOString(); target.duration = Math.max(0, Math.floor((now - new Date(target.visitTime)) / 1000)); writeDB('visits', visits);
         }
     }
     res.json({ success: true });
 });
 app.post('/api/track/submit', (req, res) => {
-    const { visitId, address } = req.body;
-    const visits = readDB('visits');
-    const target = visits.find(v => v.id === visitId);
+    const { visitId, address } = req.body; const visits = readDB('visits'); const target = visits.find(v => v.id === visitId);
     if (target) { target.address = address; target.submitTime = new Date().toISOString(); writeDB('visits', visits); }
     res.json({ success: true });
 });
 
 // ================= 后台 API =================
-const auth = (req, res, next) => {
-    if ((req.headers['x-admin-pwd'] || req.query.pwd) !== readDB('admin').password) return res.status(403).json({ error: '密码错误' });
-    next();
-};
+const auth = (req, res, next) => { if ((req.headers['x-admin-pwd'] || req.query.pwd) !== readDB('admin').password) return res.status(403).json({ error: '密码错误' }); next(); };
 
 app.post('/api/admin/password', auth, (req, res) => { writeDB('admin', { password: req.body.newPassword }); res.json({ success: true }); });
 app.post('/api/admin/upload', auth, upload.single('image'), (req, res) => res.json({ url: `/uploads/${req.file.filename}` }));
 
 app.get('/api/admin/data', auth, (req, res) => {
-    res.json({ 
-        articles: readDB('articles'), languages: readDB('languages'), 
-        settings: readDB('settings'), categories: readDB('categories'), 
-        tracking: readDB('tracking'), visits: readDB('visits'), crawl: readDB('crawl')
-    });
+    res.json({ articles: readDB('articles'), languages: readDB('languages'), settings: readDB('settings'), categories: readDB('categories'), tracking: readDB('tracking'), visits: readDB('visits'), crawl: readDB('crawl') });
 });
 
-app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
-    const { targetLang } = req.body;
-    const langs = readDB('languages');
-    const langIdx = langs.findIndex(l => l.code === targetLang);
-    if (langIdx === -1) return res.status(404).json({ error: '语言不存在' });
-
+// 新增：查询 DeepL 额度
+app.get('/api/admin/deepl/usage', auth, async (req, res) => {
+    const settings = readDB('settings');
+    let apiKey = req.query.key || settings.deeplKey1;
+    if (!apiKey || apiKey.trim() === '') return res.json({ success: false, error: '未配置 API Key' });
+    
+    const isFree = apiKey.endsWith(':fx');
+    const url = isFree ? 'https://api-free.deepl.com/v2/usage' : 'https://api.deepl.com/v2/usage';
     try {
-        const keys = Object.keys(BASE_DICT);
-        const values = Object.values(BASE_DICT);
-        
-        const translatedValues = await translateText(values, targetLang);
-        
-        const newDict = {};
-        keys.forEach((k, i) => { 
-            newDict[k] = translatedValues[i] ? translatedValues[i] : values[i]; 
-        });
-
-        langs[langIdx].dict = { ...(langs[langIdx].dict || {}), ...newDict };
-        writeDB('languages', langs);
-        res.json({ success: true });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
+        const response = await axios.get(url, { headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}` } });
+        res.json({ success: true, character_count: response.data.character_count, character_limit: response.data.character_limit });
+    } catch (error) {
+        res.json({ success: false, error: error.response?.data?.message || '查询失败，请检查 Key' });
     }
 });
 
+// 新增：翻译记录查询（支持时间与关键字）
+app.get('/api/admin/translation-logs', auth, (req, res) => {
+    const LOGS_FILE = path.join(DB_DIR, 'translation_logs.json');
+    if (!fs.existsSync(LOGS_FILE)) return res.json({ totalCount: 0, totalChars: 0, logs: [] });
+    let logs = []; try { logs = JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8')); } catch(e){}
+    
+    const { startDate, endDate, keyword } = req.query;
+    if (startDate) logs = logs.filter(l => l.time >= startDate);
+    if (endDate) logs = logs.filter(l => l.time <= endDate + 'T23:59:59.999Z');
+    if (keyword) {
+        const kw = keyword.toLowerCase();
+        logs = logs.filter(l => (l.keyName && l.keyName.toLowerCase().includes(kw)) || l.targetLang.toLowerCase().includes(kw));
+    }
+    logs.sort((a,b) => new Date(b.time) - new Date(a.time));
+    res.json({ totalCount: logs.length, totalChars: logs.reduce((s, l) => s + (Number(l.chars) || 0), 0), logs: logs.slice(0, 500) });
+});
+
+// 多语言字典一键翻译
+app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
+    const { targetLang } = req.body;
+    const langs = readDB('languages'); const langIdx = langs.findIndex(l => l.code === targetLang);
+    if (langIdx === -1) return res.status(404).json({ error: '语言不存在' });
+
+    try {
+        const keys = Object.keys(BASE_DICT); const values = Object.values(BASE_DICT);
+        const translatedValues = await translateText(values, targetLang);
+        const newDict = {};
+        keys.forEach((k, i) => { newDict[k] = translatedValues[i] ? translatedValues[i] : values[i]; });
+        langs[langIdx].dict = { ...(langs[langIdx].dict || {}), ...newDict };
+        writeDB('languages', langs); res.json({ success: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/admin/crawl/now', auth, async (req, res) => {
-    try { 
-        const configId = req.body.configId || null;
-        res.json(await crawlNews(true, configId, false)); 
-    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+    try { res.json(await crawlNews(true, req.body.configId || null, false)); } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.put('/api/admin/crawl', auth, (req, res) => {
@@ -413,46 +373,24 @@ app.put('/api/admin/crawl', auth, (req, res) => {
 });
 
 app.post('/api/admin/crawl/source', auth, (req, res) => {
-    let crawl = readDB('crawl');
-    if (!crawl.configs) crawl.configs = [];
+    let crawl = readDB('crawl'); if (!crawl.configs) crawl.configs = [];
     crawl.configs.push({ id: uuidv4(), autoEnabled: false, lastCrawlTime: 0, ...req.body });
     writeDB('crawl', crawl); res.json({ success: true });
 });
 app.put('/api/admin/crawl/source/:id', auth, (req, res) => {
-    let crawl = readDB('crawl');
-    const idx = crawl.configs.findIndex(c => c.id === req.params.id);
-    if (idx > -1) {
-        crawl.configs[idx] = { ...crawl.configs[idx], ...req.body };
-        writeDB('crawl', crawl); res.json({ success: true });
-    } else { res.status(404).json({ error: '未找到配置' }); }
+    let crawl = readDB('crawl'); const idx = crawl.configs.findIndex(c => c.id === req.params.id);
+    if (idx > -1) { crawl.configs[idx] = { ...crawl.configs[idx], ...req.body }; writeDB('crawl', crawl); res.json({ success: true }); } else { res.status(404).json({ error: '未找到配置' }); }
 });
 app.delete('/api/admin/crawl/source/:id', auth, (req, res) => {
-    let crawl = readDB('crawl');
-    crawl.configs = (crawl.configs || []).filter(c => c.id !== req.params.id);
-    writeDB('crawl', crawl); res.json({ success: true });
+    let crawl = readDB('crawl'); crawl.configs = (crawl.configs || []).filter(c => c.id !== req.params.id); writeDB('crawl', crawl); res.json({ success: true });
 });
 
-app.post('/api/admin/languages', auth, (req, res) => { 
-    const langs = readDB('languages'); 
-    langs.push({ ...req.body, active: true, dict: {} }); 
-    writeDB('languages', langs); 
-    res.json({ success: true }); 
-});
+app.post('/api/admin/languages', auth, (req, res) => { const langs = readDB('languages'); langs.push({ ...req.body, active: true, dict: {} }); writeDB('languages', langs); res.json({ success: true }); });
 app.put('/api/admin/languages/:code', auth, (req, res) => {
-    const langs = readDB('languages');
-    const idx = langs.findIndex(l => l.code === req.params.code);
-    if (idx > -1) {
-        langs[idx] = { ...langs[idx], ...req.body };
-        writeDB('languages', langs);
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'Not found' });
-    }
+    const langs = readDB('languages'); const idx = langs.findIndex(l => l.code === req.params.code);
+    if (idx > -1) { langs[idx] = { ...langs[idx], ...req.body }; writeDB('languages', langs); res.json({ success: true }); } else { res.status(404).json({ error: 'Not found' }); }
 });
-app.delete('/api/admin/languages/:code', auth, (req, res) => {
-    writeDB('languages', readDB('languages').filter(l => l.code !== req.params.code));
-    res.json({ success: true });
-});
+app.delete('/api/admin/languages/:code', auth, (req, res) => { writeDB('languages', readDB('languages').filter(l => l.code !== req.params.code)); res.json({ success: true }); });
 
 app.post('/api/admin/categories', auth, (req, res) => { const cats = readDB('categories'); cats.push(req.body); writeDB('categories', cats); res.json({ success: true }); });
 app.put('/api/admin/categories/:id', auth, (req, res) => { const cats = readDB('categories'); const idx = cats.findIndex(c => c.id === req.params.id); if (idx > -1) { cats[idx].name_zh = req.body.name_zh; cats[idx].name_en = req.body.name_en; writeDB('categories', cats); res.json({ success: true }); } });
@@ -507,12 +445,5 @@ app.post('/api/admin/tracking/logs/delete', auth, (req, res) => { let tracking =
 app.post('/api/admin/tracking/mock', auth, (req, res) => { fetchAndTranslateTracking(); res.json({ success: true }); });
 
 app.post('/api/admin/visits/delete', auth, (req, res) => { writeDB('visits', readDB('visits').filter(v => !req.body.ids.includes(v.id))); res.json({ success: true }); });
-
-app.get('/api/admin/translation-logs', auth, (req, res) => {
-    const LOGS_FILE = path.join(DB_DIR, 'translation_logs.json');
-    if (!fs.existsSync(LOGS_FILE)) return res.json({ totalCount: 0, totalChars: 0, logs: [] });
-    let logs = JSON.parse(fs.readFileSync(LOGS_FILE, 'utf8'));
-    res.json({ totalCount: logs.length, totalChars: logs.reduce((s, l) => s + (Number(l.chars) || 0), 0), logs });
-});
 
 app.listen(PORT, () => console.log(`Server on port ${PORT}`));
