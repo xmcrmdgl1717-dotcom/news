@@ -4,7 +4,7 @@ let editQuill = null;
 let allArticles = []; 
 let allLangs = []; 
 let allCategories = [];
-let globalTrackingConfig = { interval: 0, maxLogs: 100, sources: [], logs: [] };
+let globalTrackingConfig = { interval: 0, maxLogs: 100, sources: [], logs: [], autoTranslate: true };
 let globalSettings = {};
 let globalVisits = [];
 let globalCrawlConfigs = []; 
@@ -256,7 +256,7 @@ async function fetchData() {
     allArticles = data.articles || []; 
     allLangs = data.languages || []; 
     allCategories = data.categories || [];
-    globalTrackingConfig = data.tracking || { interval: 0, maxLogs: 100, sources: [], logs: [] };
+    globalTrackingConfig = data.tracking || { interval: 0, maxLogs: 100, sources: [], logs: [], autoTranslate: true };
     globalSettings = data.settings || {}; 
     globalVisits = data.visits || [];
     const crawl = data.crawl || {};
@@ -267,6 +267,7 @@ async function fetchData() {
     }
 
     renderLangCheckboxes(); // 渲染翻译语言状态
+    renderLanguages(); // 修复多语言不显示的关键调用
 
     // 系统基础配置回显
     if(document.getElementById('toolDescZh')) {
@@ -286,8 +287,6 @@ async function fetchData() {
         document.getElementById('enableAddressCheck').checked = globalSettings.enableAddressCheck !== false;
     }
 
-    renderLanguages();
-
     if(document.getElementById('crawlEnabled')) {
         document.getElementById('crawlEnabled').checked = crawl.enabled || false;
         document.getElementById('crawlInterval').value = crawl.interval || 30;
@@ -298,6 +297,7 @@ async function fetchData() {
     if(document.getElementById('trackingInterval')) {
         document.getElementById('trackingInterval').value = globalTrackingConfig.interval || 0;
         document.getElementById('trackingMaxLogs').value = globalTrackingConfig.maxLogs || 100;
+        document.getElementById('trackingAutoTranslate').checked = globalTrackingConfig.autoTranslate !== false; // 读取追踪翻译开关
     }
     renderSources();
     renderTrackingLogs();
@@ -307,6 +307,24 @@ async function fetchData() {
     populateFilterOptions();
     calculateStats();
     applyFilters();
+}
+
+// 渲染语言列表 (确保包含一键翻译)
+function renderLanguages() {
+    const tbody = document.getElementById('languageList');
+    if (!tbody) return;
+    tbody.innerHTML = allLangs.map(l => `
+        <tr class="border-b hover:bg-gray-50 dark:hover:bg-slate-800">
+            <td class="p-3 font-mono">${l.code}</td>
+            <td class="p-3 font-bold">${l.flag || ''} ${l.name}</td>
+            <td class="p-3"><button onclick="toggleLangStatus('${l.code}', ${l.active})" class="px-2 py-1 rounded text-xs font-bold transition ${l.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${l.active ? '已启用' : '已禁用'}</button></td>
+            <td class="p-3 flex gap-2">
+                <button onclick="openEditLang('${l.code}')" class="text-blue-500 text-sm hover:underline">编辑字典</button>
+                <button onclick="autoTranslateDict('${l.code}', this)" class="text-orange-500 text-sm hover:underline">一键翻译</button>
+                <button onclick="deleteLanguage('${l.code}')" class="text-red-500 text-sm hover:underline">删除</button>
+            </td>
+        </tr>
+    `).join('') || `<tr><td colspan="4" class="text-center py-6 text-gray-500">暂无语言</td></tr>`;
 }
 
 // 渲染语言勾选，区分已翻译和未翻译
@@ -1001,10 +1019,20 @@ async function deleteTrackingLogs() {
     const ids = Array.from(cbs).map(cb => cb.value);
     await fetch('/api/admin/tracking/logs/delete', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ ids }) }); fetchData();
 }
+
+// 保存追踪配置 (包含多语言开关)
 async function saveTrackingConfig() {
-    const interval = parseInt(document.getElementById('trackingInterval').value) || 0; const maxLogs = parseInt(document.getElementById('trackingMaxLogs').value) || 100;
-    await fetch('/api/admin/tracking/config', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ interval, maxLogs }) }); alert('追踪配置已保存'); fetchData();
+    const interval = parseInt(document.getElementById('trackingInterval').value) || 0;
+    const maxLogs = parseInt(document.getElementById('trackingMaxLogs').value) || 100;
+    const autoTranslate = document.getElementById('trackingAutoTranslate').checked;
+    await fetch('/api/admin/tracking/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+        body: JSON.stringify({ interval, maxLogs, autoTranslate })
+    });
+    alert('追踪配置已保存'); fetchData();
 }
+
 async function mockTrackingData() { const btn = event.target; btn.disabled = true; await fetch('/api/admin/tracking/mock', { method: 'POST', headers: { 'x-admin-pwd': adminPwd } }); fetchData(); btn.disabled = false; }
 async function addSource() {
     const name = document.getElementById('newSourceName').value.trim(); const url = document.getElementById('newSourceUrl').value.trim(); if (!name || !url) return alert('请填写完整');
