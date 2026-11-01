@@ -42,7 +42,14 @@ Object.keys(DB_FILES).forEach(key => {
     if (!fs.existsSync(DB_FILES[key])) {
         let initialData = [];
         if (key === 'admin') initialData = { password: 'admin888' };
-        if (key === 'settings') initialData = { autoLang: true, deeplKey1: '', deeplKey2: '', checkWaitTime: 5, toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成。" } };
+        if (key === 'settings') initialData = { 
+            autoLang: true, deeplKey1: '', deeplKey2: '', checkWaitTime: 5, 
+            enableAddressCheck: true, 
+            siteLogo: '', 
+            siteTitle: { zh: '链安快讯' }, 
+            siteDesc: { zh: 'Web3安全资讯' },
+            toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成。" } 
+        };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
         if (key === 'languages') initialData = [
             { code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, 
@@ -109,7 +116,6 @@ async function translateText(textArray, targetLang, sourceLang = null) {
     try {
         const response = await axios.post(url, params, { headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
         
-        // 记录日志
         if (totalChars > 0) {
             const logsFile = path.join(DB_DIR, 'translation_logs.json');
             let logs = [];
@@ -202,11 +208,30 @@ async function crawlNews(isManual = false, configId = null, isAutoGlobal = false
 
             for (let item of rawList) {
                 if (count >= currentLimit) break;
+                
                 const getField = (obj, pathStr) => {
                     if (!pathStr) return null;
                     const keys = pathStr.split('.'); let val = obj;
-                    for (let k of keys) { if (val === undefined || val === null) return null; val = val[k]; }
-                    if (val && typeof val === 'object' && val._text) return val._text;
+                    for (let k of keys) { 
+                        if (val === undefined || val === null) return null; 
+                        if (val['@_' + k] !== undefined) {
+                            val = val['@_' + k];
+                        } else {
+                            val = val[k]; 
+                        }
+                    }
+                    if (val && typeof val === 'object') {
+                        if (val._text) return val._text;
+                        if (val['#text']) return val['#text'];
+                        if (val['@_url']) return val['@_url'];
+                        if (Array.isArray(val) && val.length > 0) {
+                             const first = val[0];
+                             if (typeof first === 'string') return first;
+                             if (first['@_url']) return first['@_url'];
+                             if (first['_text']) return first['_text'];
+                             if (first.url) return first.url;
+                        }
+                    }
                     return val;
                 };
 
@@ -467,12 +492,16 @@ app.post('/api/admin/categories', auth, (req, res) => { const cats = readDB('cat
 app.put('/api/admin/categories/:id', auth, (req, res) => { const cats = readDB('categories'); const idx = cats.findIndex(c => c.id === req.params.id); if (idx > -1) { cats[idx].name_zh = req.body.name_zh; cats[idx].name_en = req.body.name_en; writeDB('categories', cats); res.json({ success: true }); } });
 app.delete('/api/admin/categories/:id', auth, (req, res) => { writeDB('categories', readDB('categories').filter(c => c.id !== req.params.id)); res.json({ success: true }); });
 
+// ================== 核心：更新系统设置 ==================
 app.put('/api/admin/settings', auth, async (req, res) => {
     const oldSettings = readDB('settings'); 
     const newSettings = { ...oldSettings, ...req.body };
+    delete newSettings.targetLangs;
+
+    // 1. 处理工具描述翻译
     if (req.body.toolDescZh !== undefined && req.body.targetLangs !== undefined) {
         let newToolDesc = oldSettings.toolDesc || {};
-        newToolDesc.zh = req.body.toolDescZh; // 🚨 核心修复：强制更新中文
+        newToolDesc.zh = req.body.toolDescZh;
         try {
             const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
             for (let l of langs) { 
@@ -484,8 +513,39 @@ app.put('/api/admin/settings', auth, async (req, res) => {
             newSettings.toolDesc = newToolDesc;
         } catch (e) { return res.status(500).json({ error: e.message }); }
     }
-    delete newSettings.toolDescZh; delete newSettings.targetLangs;
-    writeDB('settings', newSettings); res.json({ success: true });
+    delete newSettings.toolDescZh;
+
+    // 2. 处理网站标题、描述翻译
+    if (req.body.siteTitleZh !== undefined || req.body.siteDescZh !== undefined) {
+        let newSiteTitle = oldSettings.siteTitle || {};
+        let newSiteDesc = oldSettings.siteDesc || {};
+        if (req.body.siteTitleZh) newSiteTitle.zh = req.body.siteTitleZh;
+        if (req.body.siteDescZh) newSiteDesc.zh = req.body.siteDescZh;
+        
+        if (req.body.targetLangs !== undefined) {
+            try {
+                const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
+                for (let l of langs) {
+                    if (req.body.targetLangs.includes(l.code)) {
+                        if (req.body.siteTitleZh) {
+                            const res1 = await translateText([req.body.siteTitleZh], l.code);
+                            newSiteTitle[l.code] = res1[0];
+                        }
+                        if (req.body.siteDescZh) {
+                            const res2 = await translateText([req.body.siteDescZh], l.code);
+                            newSiteDesc[l.code] = res2[0];
+                        }
+                    }
+                }
+            } catch (e) { return res.status(500).json({ error: e.message }); }
+        }
+        newSettings.siteTitle = newSiteTitle;
+        newSettings.siteDesc = newSiteDesc;
+    }
+    delete newSettings.siteTitleZh; delete newSettings.siteDescZh;
+
+    writeDB('settings', newSettings); 
+    res.json({ success: true });
 });
 
 app.post('/api/admin/article/translate', auth, async (req, res) => {
