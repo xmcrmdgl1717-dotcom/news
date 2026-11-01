@@ -12,6 +12,26 @@ let currentPage = 1;
 let pageSize = 50;
 let filteredVisits = [];
 
+// 🚨 常用国家语言数据字典
+const COMMON_LANGUAGES = [
+    { name: '简体中文', code: 'zh', flag: '🇨🇳', desc: '系统默认语言' },
+    { name: 'English', code: 'en', flag: '🇺🇸', desc: '系统默认语言' },
+    { name: '日本語', code: 'jp', flag: '🇯🇵', desc: '填 jp 或 ja 均可' },
+    { name: '한국어', code: 'kr', flag: '🇰🇷', desc: '填 kr 或 ko 均可' },
+    { name: 'Français', code: 'fr', flag: '🇫🇷', desc: '法语 (法国)' },
+    { name: 'Deutsch', code: 'de', flag: '🇩🇪', desc: '德语 (德国)' },
+    { name: 'Español', code: 'es', flag: '🇪🇸', desc: '西班牙语 (西班牙)' },
+    { name: 'Русский', code: 'ru', flag: '🇷🇺', desc: '俄语 (俄罗斯)' },
+    { name: 'Português', code: 'pt', flag: '🇵🇹', desc: '葡萄牙语 (或 br 巴西)' },
+    { name: 'Italiano', code: 'it', flag: '🇮🇹', desc: '意大利语 (意大利)' },
+    { name: 'العربية', code: 'ar', flag: '🇸🇦', desc: '阿拉伯语' },
+    { name: 'Türkçe', code: 'tr', flag: '🇹🇷', desc: '土耳其语' },
+    { name: 'Tiếng Việt', code: 'vn', flag: '🇻🇳', desc: '填 vn 或 vi 均可' },
+    { name: 'ไทย', code: 'th', flag: '🇹🇭', desc: '泰语' },
+    { name: 'Bahasa Indonesia', code: 'id', flag: '🇮🇩', desc: '印尼语' },
+    { name: '繁體中文', code: 'tw', flag: '🇭🇰', desc: '系统默认映射为中文' }
+];
+
 document.addEventListener('DOMContentLoaded', () => {
     const t = localStorage.getItem('wad_theme') || 'dark';
     document.documentElement.classList.remove('dark', 'light'); 
@@ -27,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(sizeSelect) pageSize = parseInt(sizeSelect.value) || 50;
 
     bindUploadEvents();
+    initLangCodeTable();
 });
 
 function bindUploadEvents() {
@@ -63,6 +84,33 @@ function switchTab(tabId, el) {
     if (tabId === 'crawl') renderCrawledArticles();
 }
 
+// 🚨 新增：渲染语言代码对照表
+function initLangCodeTable() {
+    const tbody = document.getElementById('langCodeTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = COMMON_LANGUAGES.map(l => `
+        <tr onclick="fillLangInputs('${l.code}', '${l.name}', '${l.flag}')">
+            <td class="p-3 font-bold">${l.name}</td>
+            <td class="p-3 font-mono text-blue-600 dark:text-blue-400 font-bold">${l.code}</td>
+            <td class="p-3 text-lg">${l.flag}</td>
+            <td class="p-3 text-gray-500 text-xs">${l.desc}</td>
+        </tr>
+    `).join('');
+}
+
+function showLangCodeTable() {
+    document.getElementById('langCodeModal').classList.add('active');
+}
+
+// 点击表格行，自动填入输入框并关闭弹窗
+function fillLangInputs(code, name, flag) {
+    document.getElementById('newLangCode').value = code;
+    document.getElementById('newLangName').value = name;
+    document.getElementById('newLangFlag').value = flag;
+    document.getElementById('langCodeModal').classList.remove('active');
+}
+
 async function fetchData() {
     const res = await fetch('/api/admin/data', { headers: { 'x-admin-pwd': adminPwd } });
     if (res.status === 403) return logout();
@@ -81,10 +129,10 @@ async function fetchData() {
         document.getElementById('categoryList').innerHTML = allCategories.map(c => `<tr><td>${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="openEditCategory('${c.id}')" class="text-blue-500 mr-2">编辑</button><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`).join('');
     }
 
-    // 🚨 关键修复 1：渲染所有需要的多语言复选框
+    // 渲染所有需要的多语言复选框
     renderLangCheckboxes();
 
-    // 🚨 关键修复 2：回填系统设置的数据
+    // 回填系统设置的数据
     if(document.getElementById('toolDescZh')) {
         document.getElementById('toolDescZh').value = (globalSettings.toolDesc && globalSettings.toolDesc.zh) ? globalSettings.toolDesc.zh : '';
         document.getElementById('checkWaitTime').value = globalSettings.checkWaitTime || 5;
@@ -145,7 +193,7 @@ async function fetchData() {
     applyFilters();
 }
 
-// 🚨 新增函数：统一渲染文章发布和系统设置里的多语言复选框
+// 统一渲染文章发布和系统设置里的多语言复选框
 function renderLangCheckboxes() {
     const activeLangs = allLangs.filter(l => l.active);
     
@@ -800,7 +848,11 @@ async function deleteCategory(id) { if(confirm('确定删除该板块？')) { aw
 async function addLanguage() {
     const code = document.getElementById('newLangCode').value.trim(); const name = document.getElementById('newLangName').value.trim(); const flag = document.getElementById('newLangFlag').value.trim();
     if(!code || !name) return alert('请填写完整');
-    await fetch('/api/admin/languages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ code, name, flag }) }); fetchData();
+    await fetch('/api/admin/languages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ code, name, flag }) }); 
+    document.getElementById('newLangCode').value = '';
+    document.getElementById('newLangName').value = '';
+    document.getElementById('newLangFlag').value = '';
+    fetchData();
 }
 function openEditLang(code) {
     const l = allLangs.find(x => x.code === code);
