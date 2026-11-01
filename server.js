@@ -28,7 +28,7 @@ const DB_FILES = {
 const BASE_DICT = {
     siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪",
     loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据",
-    catAll: "全部事件", toolTitle: "🛡️ 链上地址安全检测", toolPlaceholder: "输入地址...", toolBtn: "立即检测", 
+    catAll: "全部事件", toolTitle: "免费检测地址是否安全", toolPlaceholder: "输入任何链上地址...", toolBtn: "立即检测", 
     toolLoading: "比对中...", toolReset: "重新检测 ✕",
     checkingTitle: "正在检测中...", checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库",
     resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", 
@@ -50,6 +50,8 @@ Object.keys(DB_FILES).forEach(key => {
             siteLogo: '', 
             siteTitle: { zh: '链安快讯' }, 
             siteDesc: { zh: 'Web3安全资讯' },
+            toolTitle: { zh: '免费检测地址是否安全' },
+            toolPlaceholder: { zh: '输入任何链上地址...' },
             toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成。" } 
         };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
@@ -152,7 +154,6 @@ async function fetchAndTranslateTracking() {
         
         let titleTranslations = { zh: newTitleZh, en: "Suspicious Activity " + Math.floor(Math.random()*1000) };
         
-        // 检查是否开启自动翻译开关
         if (tracking.autoTranslate !== false) {
             const langs = readDB('languages').filter(l => l.active && l.code !== 'zh' && l.code !== 'en');
             for (let l of langs) {
@@ -307,7 +308,6 @@ app.get('/api/tracking', (req, res) => {
     const lang = req.query.lang || 'en';
     let logs = readDB('tracking').logs || [];
     
-    // 多语言回退逻辑，不再因为缺少语言而隐藏数据
     const formattedLogs = logs.map(l => {
         let finalTitle = l.title[lang] || l.title['zh'] || l.title['en'] || 'Untitled';
         return { id: l.id, address: l.address, tag: l.tag, title: finalTitle };
@@ -508,12 +508,48 @@ app.put('/api/admin/settings', auth, async (req, res) => {
     const oldSettings = readDB('settings'); 
     const newSettings = { ...oldSettings, ...req.body };
     delete newSettings.targetLangs;
+    delete newSettings.toolTitleTargetLangs;
+    delete newSettings.toolPlaceholderTargetLangs;
 
     if (req.body.siteLogo !== undefined) {
         newSettings.siteLogo = req.body.siteLogo;
     }
 
-    // 1. 处理工具描述翻译
+    // 1. 处理工具标题翻译
+    if (req.body.toolTitleZh !== undefined && req.body.toolTitleTargetLangs !== undefined) {
+        let newToolTitle = oldSettings.toolTitle || {};
+        newToolTitle.zh = req.body.toolTitleZh;
+        try {
+            const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
+            for (let l of langs) { 
+                if (req.body.toolTitleTargetLangs.includes(l.code)) { 
+                    const result = await translateText([req.body.toolTitleZh], l.code); 
+                    newToolTitle[l.code] = result[0]; 
+                } 
+            }
+            newSettings.toolTitle = newToolTitle;
+        } catch (e) { return res.status(500).json({ error: e.message }); }
+    }
+    delete newSettings.toolTitleZh;
+
+    // 2. 处理工具输入提示翻译
+    if (req.body.toolPlaceholderZh !== undefined && req.body.toolPlaceholderTargetLangs !== undefined) {
+        let newToolPlaceholder = oldSettings.toolPlaceholder || {};
+        newToolPlaceholder.zh = req.body.toolPlaceholderZh;
+        try {
+            const langs = readDB('languages').filter(l => l.active && l.code !== 'zh');
+            for (let l of langs) { 
+                if (req.body.toolPlaceholderTargetLangs.includes(l.code)) { 
+                    const result = await translateText([req.body.toolPlaceholderZh], l.code); 
+                    newToolPlaceholder[l.code] = result[0]; 
+                } 
+            }
+            newSettings.toolPlaceholder = newToolPlaceholder;
+        } catch (e) { return res.status(500).json({ error: e.message }); }
+    }
+    delete newSettings.toolPlaceholderZh;
+
+    // 3. 处理工具描述翻译
     if (req.body.toolDescZh !== undefined && req.body.targetLangs !== undefined) {
         let newToolDesc = oldSettings.toolDesc || {};
         newToolDesc.zh = req.body.toolDescZh;
@@ -530,7 +566,7 @@ app.put('/api/admin/settings', auth, async (req, res) => {
     }
     delete newSettings.toolDescZh;
 
-    // 2. 处理网站标题、描述翻译
+    // 4. 处理网站标题、描述翻译
     if (req.body.siteTitleZh !== undefined || req.body.siteDescZh !== undefined) {
         let newSiteTitle = oldSettings.siteTitle || {};
         let newSiteDesc = oldSettings.siteDesc || {};
