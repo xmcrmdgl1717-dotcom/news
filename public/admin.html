@@ -32,6 +32,10 @@
     details > summary::-webkit-details-marker { display: none; }
     details[open] .arrow { transform: rotate(90deg); }
     .arrow { transition: transform 0.2s; display: inline-block; }
+    
+    /* 表格点击高亮交互 */
+    #langCodeTableBody tr { cursor: pointer; transition: background 0.2s; }
+    #langCodeTableBody tr:hover { background-color: rgba(37, 99, 235, 0.1); }
 </style>
 </head>
 <body class="h-screen flex overflow-hidden">
@@ -279,9 +283,15 @@
             <!-- 多语言管理 -->
             <div id="tab-languages" class="content-section">
                 <div class="card p-6 mb-6">
-                    <h3 class="font-bold text-lg mb-4">添加新语言</h3>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg">添加新语言</h3>
+                        <!-- 新增：查看对照表按钮 -->
+                        <button onclick="showLangCodeTable()" class="text-sm font-bold text-blue-600 hover:text-blue-800 hover:underline">
+                            🌐 查看国家/语言代码对照表
+                        </button>
+                    </div>
                     <div class="grid grid-cols-3 gap-3 mb-3">
-                        <input type="text" id="newLangCode" placeholder="代码 (如 fr)" class="input">
+                        <input type="text" id="newLangCode" placeholder="代码 (如 fr, jp)" class="input">
                         <input type="text" id="newLangName" placeholder="名称" class="input">
                         <input type="text" id="newLangFlag" placeholder="国旗" class="input">
                     </div>
@@ -414,6 +424,30 @@
             <div class="mt-4 pt-4 border-t flex justify-end gap-3" style="border-color: var(--cms-border);">
                 <button onclick="document.getElementById('crawlSourceModal').classList.remove('active')" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-border); color: var(--cms-text-main);">取消</button>
                 <button onclick="saveCrawlSource()" class="px-6 py-2 rounded font-bold transition hover:opacity-90" style="background-color: var(--cms-accent); color: #000;">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 🚨 新增：语言代码对照表弹窗 -->
+    <div id="langCodeModal" class="modal">
+        <div class="card p-6 w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-lg" style="color: var(--cms-accent);">🌐 全球语言/国家代码对照表</h3>
+                <button onclick="document.getElementById('langCodeModal').classList.remove('active')" class="text-gray-500 hover:text-red-500 text-2xl leading-none">&times;</button>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">点击下方表格中的任意一行，可自动填入左侧的输入框。</p>
+            <div class="flex-1 overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-opacity-100 z-10" style="background-color: var(--cms-card);">
+                        <tr>
+                            <th>语言名称</th>
+                            <th>代码</th>
+                            <th>国旗 (Emoji)</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody id="langCodeTableBody"></tbody>
+                </table>
             </div>
         </div>
     </div>
