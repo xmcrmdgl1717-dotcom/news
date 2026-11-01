@@ -93,7 +93,6 @@ async function fetchData() {
     renderSources();
     renderTrackingLogs();
 
-    // 渲染文章列表 (默认管理面板)
     const groups = {};
     allArticles.forEach(a => { const gid = a.groupId || a.id; if (!groups[gid]) groups[gid] = []; groups[gid].push(a); });
     let articleHtml = '';
@@ -123,8 +122,29 @@ async function fetchData() {
     });
     if(document.getElementById('articleList')) document.getElementById('articleList').innerHTML = articleHtml || '<div class="text-center py-4 text-gray-500">暂无文章</div>';
 
+    populateFilterOptions();
     calculateStats();
     applyFilters();
+}
+
+function populateFilterOptions() {
+    const fields = [
+        { elId: 'filterDevice', prop: 'device' },
+        { elId: 'filterCountry', prop: 'country' },
+        { elId: 'filterOS', prop: 'os' },
+        { elId: 'filterBrowser', prop: 'browser' },
+        { elId: 'filterLang', prop: 'lang' }
+    ];
+
+    fields.forEach(f => {
+        const el = document.getElementById(f.elId);
+        if (!el) return;
+        const defaultOption = el.options[0].outerHTML;
+        const uniqueValues = [...new Set(globalVisits.map(v => v[f.prop]).filter(v => v))];
+        let html = defaultOption;
+        uniqueValues.forEach(val => { html += `<option value="${val}">${val}</option>`; });
+        el.innerHTML = html;
+    });
 }
 
 // ================= 文章采集 =================
@@ -154,13 +174,13 @@ async function crawlNow() {
         const res = await fetch('/api/admin/crawl/now', { method: 'POST', headers: { 'x-admin-pwd': adminPwd } });
         const data = await res.json();
         if (data.success) {
-            alert(`成功采集并翻译了 ${data.count} 篇文章`);
+            alert(`成功采集 ${data.count} 篇文章 ${data.failCount > 0 ? `(其中 ${data.failCount} 篇因翻译失败仅保留原语种)` : ''}`);
             fetchData(); 
         } else {
-            alert('采集失败: ' + (data.error || '未知错误'));
+            alert('采集失败: ' + (data.error || '未知错误，请检查接口返回格式'));
         }
     } catch (e) {
-        alert('网络错误');
+        alert('网络或服务器错误: ' + e.message);
     } finally {
         btn.innerText = old; btn.disabled = false;
     }
@@ -212,7 +232,7 @@ function renderCrawledArticles() {
             </details>` : ''}
         </div>`;
     });
-    list.innerHTML = html || '<div class="text-center py-4 text-gray-500">暂无采集数据</div>';
+    list.innerHTML = html || '<div class="text-center py-4 text-gray-500">暂无采集数据，请点击左侧“立刻采集”</div>';
 }
 
 // ================= 数据汇总相关 =================
@@ -364,10 +384,26 @@ async function deleteVisits() {
     await fetch('/api/admin/visits/delete', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ ids }) });
     fetchData();
 }
-function exportCSV() { /* 略 */ }
+
+function exportCSV() {
+    const rows = [['地址', 'IP', '国家', '设备', '系统', '浏览器', '语言', '进入时间', '提交时间', '退出时间', '停留(秒)', '指纹']];
+    const cbs = document.querySelectorAll('.visit-cb:checked');
+    const toExport = cbs.length > 0 ? globalVisits.filter(v => Array.from(cbs).map(c=>c.value).includes(v.id)) : globalVisits;
+
+    toExport.forEach(v => {
+        rows.push([v.address || '未提交', v.ip, v.country, v.device, v.os, v.browser, v.lang, v.visitTime || '', v.submitTime || '', v.leaveTime || '', v.duration || 0, v.fingerprint]);
+    });
+    
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF" + rows.map(e => e.join(",")).join("\n");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent)); 
+    link.setAttribute("download", `visits_export_${new Date().getTime()}.csv`);
+    document.body.appendChild(link); link.click();
+}
+
 function loadVisits() { fetchData(); }
 
-// ================= 其他逻辑 =================
+// ================= 追踪管理 =================
 function renderSources() {
     const tbody = document.getElementById('sourceList');
     if (!tbody) return;
@@ -385,11 +421,8 @@ function renderTrackingLogs() {
             <td class="p-3 text-center"><input type="checkbox" class="tracking-log-cb w-4 h-4 cursor-pointer" value="${l.id}"></td>
             <td class="p-3 whitespace-nowrap text-gray-500 text-xs">${new Date(l.time).toLocaleString()}</td>
             <td class="p-3">
-                <div class="font-bold text-gray-700">${l.title.zh || '无中文'}</div>
-                <div class="text-xs text-gray-400 mt-1">
-                    ${l.title.en ? 'EN: ' + l.title.en : ''}
-                    ${l.title.ja ? ' | JA: ' + l.title.ja : ''}
-                </div>
+                <div class="font-bold text-gray-700">${l.title.en || '无英文'}</div>
+                <div class="text-xs text-gray-400 mt-1">${l.title.zh ? 'ZH: ' + l.title.zh : ''}</div>
             </td>
             <td class="p-3 font-mono text-xs text-blue-500">${l.address}</td>
         </tr>
@@ -427,22 +460,132 @@ async function deleteSource(index) {
     await fetch(`/api/admin/tracking/source/${index}`, { method: 'DELETE', headers: { 'x-admin-pwd': adminPwd } }); fetchData();
 }
 
-function editArticleGroup(groupId) { /* ... 保持之前的逻辑 ... */ }
-function closeEditModal() { /* ... */ }
-async function submitEditArticle() { /* ... */ }
-async function submitArticle() { /* ... */ }
-async function deleteArticleGroup(groupId) { /* ... */ }
-async function addCategory() { /* ... */ }
-function openEditCategory(id) { /* ... */ }
-async function saveEditCategory() { /* ... */ }
-async function deleteCategory(id) { /* ... */ }
+// ================= 文章及分类编辑 =================
+function editArticleGroup(groupId) {
+    const group = allArticles.filter(a => a.groupId === groupId || a.id === groupId);
+    if (!group || group.length === 0) return;
+    const main = group.find(a => a.lang === 'zh') || group[0]; const existingLangs = group.map(a => a.lang); 
+    document.getElementById('editArticleGroupId').value = groupId;
+    document.getElementById('editArtType').value = main.type;
+    document.getElementById('editArtTitle').value = main.title;
+    document.getElementById('editArtSummary').value = main.summary;
+    document.getElementById('editArtCoverUrl').value = main.coverUrl || '';
+    editQuill.root.innerHTML = main.content || '';
+    document.getElementById('editArticleLangCheckboxes').innerHTML = allLangs.filter(l => l.active).map(l => {
+        const isTranslated = existingLangs.includes(l.code); const disabled = l.code === 'zh' ? 'disabled' : ''; const checked = (l.code === 'zh' || isTranslated) ? 'checked' : '';
+        const badge = isTranslated ? `<span class="text-green-500 text-[10px] bg-green-100 px-1.5 py-0.5 rounded">已翻译</span>` : `<span class="text-red-500 text-[10px] bg-red-100 px-1.5 py-0.5 rounded">未翻译</span>`;
+        return `<label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition"><input type="checkbox" value="${l.code}" class="edit-article-lang-cb accent-blue-600 dark:accent-[#f0b90b]" ${checked} ${disabled}> ${l.flag} ${l.name} ${badge}</label>`;
+    }).join('');
+    document.getElementById('editArticleModal').classList.add('active');
+}
+function closeEditModal() { document.getElementById('editArticleModal').classList.remove('active'); document.getElementById('editArticleGroupId').value = ''; }
 
-async function addLanguage() { /* ... */ }
-function openEditLang(code) { /* ... */ }
-async function saveLangDict() { /* ... */ }
-async function autoTranslateDict(code) { /* ... */ }
-async function saveToolDesc() { /* ... */ }
-async function saveSettings() { /* ... */ }
-async function loadTranslationLogs() { /* ... */ }
-function openChangePwd() { /* ... */ }
-async function savePassword() { /* ... */ }
+async function submitEditArticle() {
+    const groupId = document.getElementById('editArticleGroupId').value; if (!groupId) return;
+    const type = document.getElementById('editArtType').value; const title = document.getElementById('editArtTitle').value;
+    const summary = document.getElementById('editArtSummary').value; const coverUrl = document.getElementById('editArtCoverUrl').value;
+    const content = editQuill.root.innerHTML;
+    if (!title) return alert('请输入标题');
+    const checkedLangs = Array.from(document.querySelectorAll('.edit-article-lang-cb:checked')).map(cb => cb.value);
+    const btn = document.getElementById('editArticleSubmitBtn'); const old = btn.innerText; btn.innerText = '翻译并保存中...'; btn.disabled = true;
+    try {
+        const res = await fetch(`/api/admin/article-group/${groupId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ title, summary, content, targetLangs: checkedLangs, type, coverUrl }) });
+        const data = await res.json();
+        if (data.success) { alert('修改并同步翻译成功！'); closeEditModal(); fetchData(); } else { alert('失败: ' + (data.error || '未知错误')); }
+    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
+}
+
+async function submitArticle() {
+    const type = document.getElementById('artType').value; const title = document.getElementById('artTitle').value;
+    const summary = document.getElementById('artSummary').value; const coverUrl = document.getElementById('artCoverUrl').value;
+    const content = quill.root.innerHTML;
+    if (!title) return alert('请输入标题');
+    const checkedLangs = Array.from(document.querySelectorAll('#articleLangCheckboxes input:checked')).map(cb => cb.value);
+    const btn = document.getElementById('articleSubmitBtn'); const old = btn.innerText; btn.innerText = '翻译并发布中...'; btn.disabled = true;
+    try {
+        const res = await fetch('/api/admin/article/translate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ title, summary, content, targetLangs: checkedLangs, type, coverUrl }) });
+        const data = await res.json();
+        if (data.success) { alert('发布成功！'); document.getElementById('artTitle').value = ''; document.getElementById('artSummary').value = ''; document.getElementById('artCoverUrl').value = ''; quill.setContents([]); fetchData(); } else { alert('失败: ' + (data.error || '未知错误')); }
+    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
+}
+
+async function deleteArticleGroup(groupId) { if(confirm('确认删除该组文章的所有语言版本？')) { await fetch(`/api/admin/article-group/${groupId}`, { method: 'DELETE', headers: { 'x-admin-pwd': adminPwd } }); fetchData(); } }
+async function addCategory() {
+    const id = document.getElementById('newCatId').value.trim(); const zh = document.getElementById('newCatZh').value.trim(); const en = document.getElementById('newCatEn').value.trim();
+    if(!id || !zh) return alert('请填写完整');
+    await fetch('/api/admin/categories', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ id, name_zh: zh, name_en: en }) });
+    document.getElementById('newCatId').value = ''; document.getElementById('newCatZh').value = ''; document.getElementById('newCatEn').value = ''; fetchData();
+}
+function openEditCategory(id) {
+    const cat = allCategories.find(c => c.id === id);
+    if(!cat) return;
+    document.getElementById('editCatId').value = cat.id;
+    document.getElementById('editCatZh').value = cat.name_zh;
+    document.getElementById('editCatEn').value = cat.name_en;
+    document.getElementById('editCategoryModal').classList.add('active');
+}
+async function saveEditCategory() {
+    const id = document.getElementById('editCatId').value;
+    const zh = document.getElementById('editCatZh').value;
+    const en = document.getElementById('editCatEn').value;
+    await fetch(`/api/admin/categories/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ name_zh: zh, name_en: en }) });
+    document.getElementById('editCategoryModal').classList.remove('active');
+    fetchData();
+}
+async function deleteCategory(id) { if(confirm('确定删除该板块？')) { await fetch(`/api/admin/categories/${id}`, { method: 'DELETE', headers: { 'x-admin-pwd': adminPwd } }); fetchData(); } }
+
+// ================= 多语言与设置 =================
+async function addLanguage() {
+    const code = document.getElementById('newLangCode').value.trim(); const name = document.getElementById('newLangName').value.trim(); const flag = document.getElementById('newLangFlag').value.trim();
+    if(!code || !name) return alert('请填写完整');
+    await fetch('/api/admin/languages', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ code, name, flag }) }); fetchData();
+}
+function openEditLang(code) {
+    const l = allLangs.find(x => x.code === code);
+    if(l) { document.getElementById('editLangCode').value = code; document.getElementById('editLangDict').value = JSON.stringify(l.dict || {}, null, 2); document.getElementById('editLangModal').classList.add('active'); }
+}
+async function saveLangDict() {
+    const code = document.getElementById('editLangCode').value;
+    try { const dict = JSON.parse(document.getElementById('editLangDict').value); await fetch(`/api/admin/languages/${code}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ dict }) }); document.getElementById('editLangModal').classList.remove('active'); fetchData(); } catch (e) { alert('JSON 格式错误'); }
+}
+async function autoTranslateDict(code) {
+    if(!confirm(`确定要使用真实的 DeepL API 自动覆盖翻译 [${code}] 的菜单字典吗？`)) return;
+    const btn = event.target; const old = btn.innerText; btn.innerText = '请求翻译中...'; btn.disabled = true;
+    try {
+        const res = await fetch('/api/admin/languages/translate-dict', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ targetLang: code }) });
+        const data = await res.json(); if (data.success) { alert('字典已通过 DeepL 翻译成功！'); fetchData(); } else { alert('翻译失败: ' + (data.error || '未知错误')); }
+    } catch(e) { alert('网络请求失败'); } finally { btn.innerText = old; btn.disabled = false; }
+}
+
+async function saveToolDesc() {
+    const toolDescZh = document.getElementById('toolDescZh').value; if (!toolDescZh) return alert('请输入中文描述文本');
+    const checkedLangs = Array.from(document.querySelectorAll('.tool-desc-lang-cb:checked')).map(cb => cb.value);
+    const btn = event.target; const old = btn.innerText; btn.innerText = '翻译并保存中...'; btn.disabled = true;
+    try {
+        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ toolDescZh, targetLangs: checkedLangs }) });
+        if (res.ok) { alert('描述已保存并完成翻译！'); fetchData(); } else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
+    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
+}
+async function saveSettings() {
+    const deeplKey1 = document.getElementById('deeplKey1').value; const deeplKey2 = document.getElementById('deeplKey2').value;
+    const autoLang = document.getElementById('autoLangSwitch').checked; const checkWaitTime = parseInt(document.getElementById('checkWaitTime').value) || 5;
+    const btn = event.target; const old = btn.innerText; btn.innerText = '保存中...'; btn.disabled = true;
+    try {
+        const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, checkWaitTime }) });
+        if (res.ok) { alert('系统配置已保存！'); fetchData(); } else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
+    } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
+}
+
+async function loadTranslationLogs() {
+    const res = await fetch('/api/admin/translation-logs', { headers: { 'x-admin-pwd': adminPwd } }); const data = await res.json();
+    if(document.getElementById('logTotalCount')) {
+        document.getElementById('logTotalCount').innerText = data.totalCount; document.getElementById('logTotalChars').innerText = data.totalChars;
+        document.getElementById('translationLogList').innerHTML = data.logs.map(l => `<tr><td>${new Date(l.time).toLocaleString()}</td><td>${l.targetLang}</td><td class="text-green-500">${l.chars}</td></tr>`).join('');
+    }
+}
+function openChangePwd() { document.getElementById('newPwdInput').value = ''; document.getElementById('changePwdModal').classList.add('active'); }
+async function savePassword() {
+    const newPwd = document.getElementById('newPwdInput').value; if(!newPwd) return alert('密码不能为空');
+    const res = await fetch('/api/admin/password', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ newPassword: newPwd }) });
+    if(res.ok) { alert('密码修改成功，请重新登录'); sessionStorage.removeItem('wad_admin_pwd'); location.reload(); }
+}
