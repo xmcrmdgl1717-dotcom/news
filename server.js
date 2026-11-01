@@ -58,19 +58,33 @@ Object.keys(DB_FILES).forEach(key => {
     }
 });
 
-// 🚨 强制校验 languages.json，防止被清空或损坏
+// 🚨 强制修复语言文件：确保中英文存在，且都有 active 字段
 try {
     let langs = JSON.parse(fs.readFileSync(DB_FILES.languages, 'utf8'));
-    if (!Array.isArray(langs) || langs.length === 0 || !langs.find(l => l.code === 'zh')) {
-        const defaultLangs = [
-            { code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, 
-            { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }
-        ];
-        fs.writeFileSync(DB_FILES.languages, JSON.stringify(defaultLangs, null, 2));
-        console.log('已自动恢复默认中英文语言配置');
+    let updated = false;
+    if (!Array.isArray(langs)) { langs = []; updated = true; }
+    
+    // 强制加入中文
+    if (!langs.find(l => l.code === 'zh')) {
+        langs.push({ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT });
+        updated = true;
+    }
+    // 强制加入英文
+    if (!langs.find(l => l.code === 'en')) {
+        langs.push({ code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} });
+        updated = true;
+    }
+    // 补全 active 字段
+    langs.forEach(l => {
+        if (l.active === undefined) { l.active = true; updated = true; }
+    });
+
+    if (updated) {
+        fs.writeFileSync(DB_FILES.languages, JSON.stringify(langs, null, 2));
+        console.log('已强制修复多语言配置，确保中英文存在且启用');
     }
 } catch (e) {
-    console.error('语言文件读取失败，正在重建...', e);
+    console.error('语言文件修复失败，重新生成', e);
     const defaultLangs = [
         { code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, 
         { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }
@@ -82,7 +96,7 @@ const readDB = (key) => JSON.parse(fs.readFileSync(DB_FILES[key]));
 const writeDB = (key, data) => fs.writeFileSync(DB_FILES[key], JSON.stringify(data, null, 2));
 
 // ================= DeepL 翻译引擎 =================
-async function translateText(textArray, targetLang, sourceLang = 'ZH') {
+async function translateText(textArray, targetLang, sourceLang = null) {
     if (!textArray || textArray.length === 0) return [];
     const settings = readDB('settings');
     const keys = [settings.deeplKey1, settings.deeplKey2].filter(k => k && k.trim() !== '');
@@ -98,7 +112,11 @@ async function translateText(textArray, targetLang, sourceLang = 'ZH') {
     const params = new URLSearchParams();
     textArray.forEach(text => params.append('text', text || ''));
     params.append('target_lang', targetCode);
-    params.append('source_lang', sourceLang.toUpperCase());
+    
+    // 如果传了 sourceLang 则用，没传则不传，让 DeepL 自动识别源语言
+    if (sourceLang) {
+        params.append('source_lang', sourceLang.toUpperCase());
+    }
     
     try {
         const response = await axios.post(url, params, { headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
@@ -141,7 +159,8 @@ async function fetchAndTranslateTracking() {
     } catch (e) { console.error('追踪生成失败', e); }
 }
 
-async function crawlNews(isManual = false) {
+// 支持传入 configId 单独采集
+async function crawlNews(isManual = false, configId = null) {
     let config = readDB('crawl');
     const now = Date.now();
     
@@ -154,7 +173,8 @@ async function crawlNews(isManual = false) {
 
     let totalCount = 0;
     let totalFailCount = 0;
-    const configs = config.configs || [];
+    // 过滤出要执行的 configs
+    const configs = (config.configs || []).filter(c => !configId || c.id === configId);
 
     if (configs.length === 0) return { success: false, error: '未配置任何采集源' };
 
@@ -184,8 +204,6 @@ async function crawlNews(isManual = false) {
 
             let count = 0;
             const currentLimit = cfg.limit ? Number(cfg.limit) : 10;
-            const sourceLangUpper = (cfg.sourceLang || 'EN').toUpperCase();
-            const sourceLangLower = sourceLangUpper.toLowerCase();
 
             for (let item of rawList) {
                 if (count >= currentLimit) break;
@@ -217,16 +235,19 @@ async function crawlNews(isManual = false) {
                 const groupId = uuidv4();
                 const isoTime = new Date(pubDate).toISOString();
 
-                articles.push({ id: uuidv4(), groupId, lang: sourceLangLower, type, title, summary, content, coverUrl, author, time: isoTime });
+                // 存入时，因为我们不知道源语言，暂时存入 'original'，或者默认存 'en' 以便前台展示。
+                // 既然用户说无所谓源头，我们就存原始版本到一个隐藏语言或英文下。
+                articles.push({ id: uuidv4(), groupId, lang: 'original', type, title, summary, content, coverUrl, author, time: isoTime });
                 existingTitles.add(title); 
 
+                // 存入目标翻译语种
                 const targetLangs = cfg.targetLangs || [];
                 for (let l of targetLangs) {
-                    if (l === sourceLangLower) continue; 
                     try {
-                        const tTitle = await translateText([title], l, sourceLangUpper);
-                        const tSummary = await translateText([summary], l, sourceLangUpper);
-                        const tContent = await translateText([content], l, sourceLangUpper);
+                        // 注意这里没有传 sourceLang，DeepL 会自动识别
+                        const tTitle = await translateText([title], l);
+                        const tSummary = await translateText([summary], l);
+                        const tContent = await translateText([content], l);
                         
                         if (tTitle[0] && tSummary[0] && tContent[0]) {
                             articles.push({ id: uuidv4(), groupId, lang: l, type, title: tTitle[0], summary: tSummary[0], content: tContent[0], coverUrl, author, time: isoTime });
@@ -331,8 +352,12 @@ app.get('/api/admin/data', auth, (req, res) => {
     });
 });
 
+// 支持传入单一 configId 进行采集
 app.post('/api/admin/crawl/now', auth, async (req, res) => {
-    try { res.json(await crawlNews(true)); } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+    try { 
+        const configId = req.body.configId || null;
+        res.json(await crawlNews(true, configId)); 
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
 app.put('/api/admin/crawl', auth, (req, res) => {
@@ -362,7 +387,6 @@ app.delete('/api/admin/crawl/source/:id', auth, (req, res) => {
     writeDB('crawl', crawl); res.json({ success: true });
 });
 
-// 语言管理 API (补全)
 app.post('/api/admin/languages', auth, (req, res) => { 
     const langs = readDB('languages'); 
     langs.push({ ...req.body, active: true, dict: {} }); 
