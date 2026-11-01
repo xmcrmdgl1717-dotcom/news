@@ -35,6 +35,12 @@
     
     #langCodeTableBody tr { cursor: pointer; transition: background 0.2s; }
     #langCodeTableBody tr:hover { background-color: rgba(37, 99, 235, 0.1); }
+    
+    /* 翻译状态分组框 */
+    .lang-group-box { width: 100%; margin-bottom: 10px; border: 1px solid var(--cms-border); border-radius: 0.5rem; padding: 10px; background: rgba(128,128,128,0.02); }
+    .lang-group-title { font-size: 12px; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; gap: 5px; }
+    .lang-group-translated { color: #22c55e; }
+    .lang-group-untranslated { color: #ef4444; }
 </style>
 </head>
 <body class="h-screen flex overflow-hidden">
@@ -162,7 +168,6 @@
                         <button onclick="submitArticle()" id="articleSubmitBtn" class="px-6 py-2 rounded font-bold transition hover:opacity-90" style="background-color: var(--cms-accent); color: #000;">智能翻译并发布</button>
                     </div>
                     
-                    <!-- 文章列表与批量操作 -->
                     <div class="card p-6 overflow-y-auto" style="max-height: calc(100vh - 150px);">
                         <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
                             <h3 class="font-bold text-lg" style="color: var(--cms-text-main);">已发布文章</h3>
@@ -228,7 +233,6 @@
                         </div>
                     </div>
 
-                    <!-- 采集列表与批量操作 -->
                     <div class="card p-6 overflow-y-auto" style="max-height: calc(100vh - 150px);">
                         <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
                             <h3 class="font-bold text-lg text-gray-800">已采集文章</h3>
@@ -333,7 +337,6 @@
                     <div class="card p-6"><div class="text-sm font-bold" style="color: var(--cms-text-muted);">总消耗字符</div><div class="text-3xl font-bold text-green-500" id="logTotalChars">0</div></div>
                 </div>
 
-                <!-- DeepL 实时额度 -->
                 <div class="card p-4 mb-6">
                     <div class="flex justify-between items-center mb-2">
                         <h4 class="font-bold text-sm text-blue-600">DeepL 额度情况 (主 Key)</h4>
@@ -364,20 +367,62 @@
 
             <!-- 系统设置 -->
             <div id="tab-settings" class="content-section">
-                <div class="card p-6 max-w-2xl mb-6">
-                    <h3 class="font-bold text-lg mb-4">语言与翻译配置</h3>
+                <div class="card p-6 max-w-4xl mb-6">
+                    <h3 class="font-bold text-lg mb-4">网站基础设置</h3>
+                    
+                    <div class="space-y-4 mb-6 border-b pb-4" style="border-color: var(--cms-border);">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">网站标题 (源语言：中文)</label>
+                                <input type="text" id="siteTitleZh" class="input" placeholder="如：链安快讯">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">网站描述 (源语言：中文)</label>
+                                <input type="text" id="siteDescZh" class="input" placeholder="如：Web3安全资讯">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">网站 LOGO (优先显示)</label>
+                            <div class="flex items-center gap-2">
+                                <input type="file" id="siteLogoFile" accept="image/*" class="input text-sm">
+                                <input type="text" id="siteLogoUrl" class="input text-sm" readonly placeholder="未上传">
+                            </div>
+                        </div>
+                        
+                        <div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-sm font-bold" style="color: var(--cms-text-muted);">发布翻译语言 (需要自动翻译勾选)：</p>
+                            </div>
+                            <div id="siteInfoLangCheckboxes"></div>
+                        </div>
+                        
+                        <button onclick="saveSiteInfo()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;">保存基础设置并翻译</button>
+                    </div>
+
+                    <h3 class="font-bold text-lg mb-4">工具与检测配置</h3>
                     <div class="space-y-4 mb-6 border-b pb-4" style="border-color: var(--cms-border);">
                         <div>
                             <label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">检测窗描述文本 (源语言：中文)</label>
                             <p class="text-xs text-blue-500 mb-2">输入内容后，勾选需要翻译并发布的语言。</p>
                             <textarea id="toolDescZh" class="input" rows="3"></textarea>
                         </div>
-                        <div>
-                            <label class="block text-sm font-bold mb-2" style="color: var(--cms-text-muted);">发布语言：</label>
-                            <div class="flex gap-4 flex-wrap p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);" id="toolDescLangCheckboxes"></div>
+                        <div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="text-sm font-bold" style="color: var(--cms-text-muted);">发布翻译语言：</p>
+                            </div>
+                            <div id="toolDescLangCheckboxes"></div>
                         </div>
                         <button onclick="saveToolDesc()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-accent); color: #000;">翻译并保存描述</button>
                     </div>
+
+                    <div class="flex items-center justify-between border-b pb-4 mb-4" style="border-color: var(--cms-border);">
+                        <div>
+                            <div class="font-bold">开启地址格式校验</div>
+                            <div class="text-sm text-gray-500">开启后，用户输入的地址长度不够时将会被拦截提示（关闭则不限制长度）</div>
+                        </div>
+                        <input type="checkbox" id="enableAddressCheck" class="w-5 h-5" style="accent-color: var(--cms-accent);">
+                    </div>
+
                     <div class="flex items-center justify-between border-b pb-4 mb-4" style="border-color: var(--cms-border);">
                         <div>
                             <div class="font-bold">检测等待时间 (秒)</div>
@@ -412,7 +457,7 @@
                         </div>
                     </div>
                     
-                    <button onclick="saveSettings()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存配置</button>
+                    <button onclick="saveSettings()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存系统配置</button>
                 </div>
             </div>
 
