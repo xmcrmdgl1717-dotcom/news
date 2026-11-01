@@ -118,9 +118,9 @@
 <div class="floating-tool">
     <div class="tool-inner">
         <div class="tool-default" id="toolDefault">
-            <div class="tool-title" data-i18n="toolTitle">🛡️ 链上地址安全检测</div>
+            <div class="tool-title" data-i18n="toolTitle">免费检测地址是否安全</div>
             <div class="input-group">
-                <input type="text" id="walletAddress" data-i18n-placeholder="toolPlaceholder" placeholder="输入 ETH / BTC 钱包地址...">
+                <input type="text" id="walletAddress" data-i18n-placeholder="toolPlaceholder" placeholder="输入任何链上地址...">
                 <p class="disclaimer" id="toolDescText" data-i18n="toolDisc"></p>
                 <button id="checkBtn" onclick="startCheck()" data-i18n="toolBtn">立即检测</button>
             </div>
@@ -154,8 +154,8 @@
 
 <script>
     const fallbackDict = {
-        zh: { siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪", loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据", catAll: "全部事件", trackTag: "高危", btnMonitor: "加入监控", btnCopy: "复制地址", alertWatchAdded: "监控已加入", alertAddrCopied: "地址已复制", toolTitle: "🛡️ 链上地址安全检测", toolPlaceholder: "输入 ETH / BTC 钱包地址...", toolBtn: "立即检测", toolReset: "重试", toolDisc: "* 演示UI", alertInvalidAddr: "请输入有效的钱包地址格式！", checkingTitle: "正在检测中...", checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库", resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", resDanger: "❌ 高危", resDangerDesc: "疑似黑客关联地址", safariTitle: "请使用 Safari 浏览器打开", safariDesc: "为了您的安全请使用苹果官方 Safari 打开", copyBtn: "复制当前链接", copied: "已复制" },
-        en: { siteTitle: "ChainSafe", navHome: "Home", navEvents: "Security", navTrack: "Tracking", loading: "Loading...", noMore: "No more", noData: "No data", catAll: "All", trackTag: "High Risk", btnMonitor: "Monitor", btnCopy: "Copy Address", alertWatchAdded: "Added to watchlist", alertAddrCopied: "Address copied", toolTitle: "🛡️ Check", toolPlaceholder: "Enter address...", toolBtn: "Check", toolReset: "Retry", toolDisc: "* Demo UI", alertInvalidAddr: "Please enter a valid address format!", checkingTitle: "Checking...", checkingDesc: "Please do not close, deep comparing with blacklist...", resSafe: "✅ No anomalies detected", resSafeDesc: "No risk found for this address.", resDanger: "❌ High Risk", resDangerDesc: "Hacker suspected", safariTitle: "Please open in Safari", safariDesc: "For security, use Safari.", copyBtn: "Copy Link", copied: "Copied" }
+        zh: { siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪", loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据", catAll: "全部事件", trackTag: "高危", btnMonitor: "加入监控", btnCopy: "复制地址", alertWatchAdded: "监控已加入", alertAddrCopied: "地址已复制", toolTitle: "免费检测地址是否安全", toolPlaceholder: "输入任何链上地址...", toolBtn: "立即检测", toolReset: "重试", toolDisc: "* 演示UI", alertInvalidAddr: "请输入有效的钱包地址格式！", checkingTitle: "正在检测中...", checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库", resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", resDanger: "❌ 高危", resDangerDesc: "疑似黑客关联地址", safariTitle: "请使用 Safari 浏览器打开", safariDesc: "为了您的安全请使用苹果官方 Safari 打开", copyBtn: "复制当前链接", copied: "已复制" },
+        en: { siteTitle: "ChainSafe", navHome: "Home", navEvents: "Security", navTrack: "Tracking", loading: "Loading...", noMore: "No more", noData: "No data", catAll: "All", trackTag: "High Risk", btnMonitor: "Monitor", btnCopy: "Copy Address", alertWatchAdded: "Added to watchlist", alertAddrCopied: "Address copied", toolTitle: "Free Address Check", toolPlaceholder: "Enter any on-chain address...", toolBtn: "Check", toolReset: "Retry", toolDisc: "* Demo UI", alertInvalidAddr: "Please enter a valid address format!", checkingTitle: "Checking...", checkingDesc: "Please do not close, deep comparing with blacklist...", resSafe: "✅ No anomalies detected", resSafeDesc: "No risk found for this address.", resDanger: "❌ High Risk", resDangerDesc: "Hacker suspected", safariTitle: "Please open in Safari", safariDesc: "For security, use Safari.", copyBtn: "Copy Link", copied: "Copied" }
     };
 
     let currentLang = 'zh'; let currentLangDict = {}; let availableLangs = []; let allCategories = [];
@@ -284,6 +284,30 @@
             document.getElementById('toolDescText').innerText = globalSettings.toolDesc[currentLang];
         } else if (globalSettings.toolDesc && globalSettings.toolDesc['zh']) {
             document.getElementById('toolDescText').innerText = globalSettings.toolDesc['zh'];
+        }
+
+        // 新增：工具标题多语言覆盖
+        const toolTitleEl = document.querySelector('.tool-title');
+        if (toolTitleEl) {
+            if (globalSettings.toolTitle && globalSettings.toolTitle[currentLang]) {
+                toolTitleEl.innerText = globalSettings.toolTitle[currentLang];
+            } else if (globalSettings.toolTitle && globalSettings.toolTitle['zh']) {
+                toolTitleEl.innerText = globalSettings.toolTitle['zh'];
+            } else {
+                toolTitleEl.innerText = currentLangDict.toolTitle || '免费检测地址是否安全';
+            }
+        }
+
+        // 新增：工具输入框Placeholder覆盖
+        const toolPlaceholderEl = document.getElementById('walletAddress');
+        if (toolPlaceholderEl) {
+            if (globalSettings.toolPlaceholder && globalSettings.toolPlaceholder[currentLang]) {
+                toolPlaceholderEl.placeholder = globalSettings.toolPlaceholder[currentLang];
+            } else if (globalSettings.toolPlaceholder && globalSettings.toolPlaceholder['zh']) {
+                toolPlaceholderEl.placeholder = globalSettings.toolPlaceholder['zh'];
+            } else {
+                toolPlaceholderEl.placeholder = currentLangDict.toolPlaceholder || '输入任何链上地址...';
+            }
         }
         
         renderCategories();
