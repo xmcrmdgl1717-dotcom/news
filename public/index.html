@@ -5,13 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>链安快讯 - Web3安全资讯</title>
     <style>
-        /* 样式保持不变 */
         :root { --bg-color: #0b0e14; --card-bg: #161b22; --text-main: #e6edf3; --text-muted: #8b949e; --accent-color: #f0b90b; --danger-color: #ff4d4f; --safe-color: #52c41a; --border-color: #30363d; }
         * { box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; line-height: 1.6; padding-bottom: 240px; overflow-x: hidden; }
         .container { max-width: 800px; margin: 0 auto; padding: 15px; }
         header { border-bottom: 1px solid var(--border-color); padding-bottom: 15px; margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
-        header h1 { margin: 0; font-size: 24px; color: var(--accent-color); cursor: pointer; white-space: nowrap; }
+        header h1 { margin: 0; font-size: 24px; color: var(--accent-color); cursor: pointer; white-space: nowrap; display: flex; align-items: center; }
         header nav { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
         .lang-selector { position: relative; display: inline-block; }
         .lang-btn { background-color: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); padding: 4px 10px; border-radius: 6px; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; line-height: 1; }
@@ -84,7 +83,7 @@
 
 <div class="container">
     <header>
-        <h1 onclick="switchPage('home')" data-i18n="siteTitle">链安快讯</h1>
+        <h1 onclick="switchPage('home')" id="siteTitleHeader">链安快讯</h1>
         <nav id="navMenu">
             <div class="lang-selector" id="langSelector">
                 <div class="lang-btn" id="langBtn">🌏</div>
@@ -152,7 +151,6 @@
 </div>
 
 <script>
-    // 字典配置保持原样
     const fallbackDict = {
         zh: { siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪", loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据", catAll: "全部事件", trackTag: "高危", btnMonitor: "加入监控", btnCopy: "复制地址", alertWatchAdded: "监控已加入", alertAddrCopied: "地址已复制", toolTitle: "🛡️ 链上地址安全检测", toolPlaceholder: "输入 ETH / BTC 钱包地址...", toolBtn: "立即检测", toolReset: "重试", toolDisc: "* 演示UI", alertInvalidAddr: "请输入有效的钱包地址格式！", checkingTitle: "正在检测中...", checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库", resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", resDanger: "❌ 高危", resDangerDesc: "疑似黑客关联地址", safariTitle: "请使用 Safari 浏览器打开", safariDesc: "为了您的安全请使用苹果官方 Safari 打开", copyBtn: "复制当前链接", copied: "已复制" },
         en: { siteTitle: "ChainSafe", navHome: "Home", navEvents: "Security", navTrack: "Tracking", loading: "Loading...", noMore: "No more", noData: "No data", catAll: "All", trackTag: "High Risk", btnMonitor: "Monitor", btnCopy: "Copy Address", alertWatchAdded: "Added to watchlist", alertAddrCopied: "Address copied", toolTitle: "🛡️ Check", toolPlaceholder: "Enter address...", toolBtn: "Check", toolReset: "Retry", toolDisc: "* Demo UI", alertInvalidAddr: "Please enter a valid address format!", checkingTitle: "Checking...", checkingDesc: "Please do not close, deep comparing with blacklist...", resSafe: "✅ No anomalies detected", resSafeDesc: "No risk found for this address.", resDanger: "❌ High Risk", resDangerDesc: "Hacker suspected", safariTitle: "Please open in Safari", safariDesc: "For security, use Safari.", copyBtn: "Copy Link", copied: "Copied" }
@@ -253,7 +251,21 @@
         const langData = availableLangs.find(l => l.code === currentLang);
         currentLangDict = Object.assign({}, fallbackDict['zh'], fallbackDict[currentLang], langData?.dict || {});
         
-        document.querySelectorAll('[data-i18n]').forEach(el => { const key = el.getAttribute('data-i18n'); if (currentLangDict[key]) el.innerText = currentLangDict[key]; });
+        // 处理顶部 LOGO 和网站标题
+        const h1El = document.getElementById('siteTitleHeader');
+        if (h1El) {
+            if (globalSettings.siteLogo) {
+                h1El.innerHTML = `<img src="${globalSettings.siteLogo}" style="height: 32px; max-width: 200px; object-fit: contain;">`;
+            } else {
+                h1El.innerText = currentLangDict.siteTitle || '链安快讯';
+            }
+        }
+
+        document.querySelectorAll('[data-i18n]').forEach(el => { 
+            if (el.id === 'siteTitleHeader') return; // 防止被文本覆盖
+            const key = el.getAttribute('data-i18n'); 
+            if (currentLangDict[key]) el.innerText = currentLangDict[key]; 
+        });
         document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { const key = el.getAttribute('data-i18n-placeholder'); if (currentLangDict[key]) el.placeholder = currentLangDict[key]; });
 
         if (globalSettings.toolDesc && globalSettings.toolDesc[currentLang]) {
@@ -357,7 +369,6 @@
             const container = document.getElementById('track-list');
             if (tracks.length === 0) { container.innerHTML = `<div style="text-align:center; color:#8b949e; padding:20px;">${currentLangDict.noData}</div>`; return; }
             
-            // 后端已确保返回的 tracks 都有当前语言的 title
             container.innerHTML = tracks.map(t => `
                 <div class="track-card">
                     <div class="track-header">
@@ -386,7 +397,15 @@
 
     function startCheck() {
         const input = document.getElementById('walletAddress').value.trim();
-        if (input.length < 10) { alert(currentLangDict.alertInvalidAddr); return; }
+        
+        // 动态读取系统配置，判断是否开启格式校验
+        const isCheckEnabled = globalSettings.enableAddressCheck !== false;
+        
+        if (isCheckEnabled) {
+            if (input.length < 10) { alert(currentLangDict.alertInvalidAddr); return; }
+        } else {
+            if (!input) { alert(currentLangDict.alertInvalidAddr || '请输入地址'); return; }
+        }
         
         const waitTime = globalSettings.checkWaitTime || 5;
         let timeLeft = waitTime;
