@@ -7,6 +7,7 @@ let allCategories = [];
 let globalTrackingConfig = { interval: 0, maxLogs: 100, sources: [], logs: [] };
 let globalSettings = {};
 let globalVisits = [];
+let globalCrawlConfigs = []; // 缓存采集源配置
 let currentPage = 1;
 let pageSize = 50;
 let filteredVisits = [];
@@ -78,11 +79,12 @@ async function fetchData() {
         document.getElementById('categoryList').innerHTML = allCategories.map(c => `<tr><td>${c.id}</td><td>${c.name_zh}</td><td>${c.name_en}</td><td><button onclick="openEditCategory('${c.id}')" class="text-blue-500 mr-2">编辑</button><button onclick="deleteCategory('${c.id}')" class="text-red-500">删除</button></td></tr>`).join('');
     }
 
-    if(document.getElementById('crawlConfigCode')) {
+    if(document.getElementById('crawlEnabled')) {
         document.getElementById('crawlEnabled').checked = crawl.enabled || false;
         document.getElementById('crawlInterval').value = crawl.interval || 30;
         document.getElementById('crawlLimit').value = crawl.limit || 10;
-        document.getElementById('crawlConfigCode').value = crawl.codeConfig || '';
+        globalCrawlConfigs = crawl.configs || []; // 缓存数据
+        renderCrawlSourcesList(globalCrawlConfigs);
         renderCrawledArticles(); 
     }
 
@@ -147,21 +149,138 @@ function populateFilterOptions() {
     });
 }
 
-// ================= 文章采集 =================
+// ================= 多源采集配置管理 =================
+function renderCrawlSourcesList(configs) {
+    const list = document.getElementById('crawlSourceList');
+    if (!list) return;
+    
+    if (configs.length === 0) {
+        list.innerHTML = '<div class="text-center py-6 text-gray-500 border rounded border-dashed" style="border-color: var(--cms-border);">暂无采集源，请点击右上角添加</div>';
+        return;
+    }
+
+    list.innerHTML = configs.map((c, idx) => `
+        <div class="border p-3 rounded mb-2 flex justify-between items-center" style="border-color: var(--cms-border); background: rgba(128,128,128,0.05);">
+            <div>
+                <div class="font-bold text-sm flex items-center gap-2">
+                    <span class="bg-blue-100 text-blue-600 px-1.5 py-0.5 rounded text-[10px]">${c.sourceLang || 'EN'}</span>
+                    ${c.name}
+                </div>
+                <div class="text-xs text-gray-500 font-mono mt-1 truncate" style="max-width: 250px;">${c.url}</div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="editCrawlSource(${idx})" class="text-blue-500 text-xs hover:underline px-2 py-1">编辑</button>
+                <button onclick="deleteCrawlSource(${idx})" class="text-red-500 text-xs hover:underline px-2 py-1">删除</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function openCrawlSourceModal() {
+    document.getElementById('crawlSourceId').value = '';
+    document.getElementById('crawlSourceName').value = '';
+    document.getElementById('crawlSourceUrl').value = '';
+    document.getElementById('crawlModalTitle').innerText = '添加采集源';
+    
+    // 渲染源语言下拉
+    const langSelect = document.getElementById('crawlSourceLang');
+    langSelect.innerHTML = allLangs.filter(l=>l.active).map(l => `<option value="${l.code.toUpperCase()}">${l.name}</option>`).join('');
+
+    // 渲染目标语言复选框
+    document.getElementById('crawlTargetLangCheckboxes').innerHTML = allLangs.filter(l=>l.active).map(l => `
+        <label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition">
+            <input type="checkbox" value="${l.code}" class="crawl-target-lang-cb accent-blue-600 dark:accent-[#f0b90b]"> ${l.flag} ${l.name}
+        </label>
+    `).join('');
+
+    // 默认 Mapping 模板
+    document.getElementById('crawlSourceMapping').value = JSON.stringify({
+        "title": "title",
+        "summary": "description",
+        "content": "description",
+        "author": "author",
+        "time": "pubDate",
+        "type": "hack"
+    }, null, 2);
+
+    document.getElementById('crawlSourceModal').classList.add('active');
+}
+
+function editCrawlSource(index) {
+    const c = globalCrawlConfigs[index];
+    if (!c) return;
+
+    document.getElementById('crawlSourceId').value = c.id;
+    document.getElementById('crawlSourceName').value = c.name;
+    document.getElementById('crawlSourceUrl').value = c.url;
+    document.getElementById('crawlModalTitle').innerText = '编辑采集源';
+
+    const langSelect = document.getElementById('crawlSourceLang');
+    langSelect.innerHTML = allLangs.filter(l=>l.active).map(l => `<option value="${l.code.toUpperCase()}">${l.name}</option>`).join('');
+    langSelect.value = c.sourceLang || 'EN';
+
+    document.getElementById('crawlTargetLangCheckboxes').innerHTML = allLangs.filter(l=>l.active).map(l => {
+        const isChecked = (c.targetLangs || []).includes(l.code) ? 'checked' : '';
+        return `
+        <label class="flex items-center gap-2 text-sm cursor-pointer p-1 rounded hover:bg-gray-100 dark:hover:bg-slate-800 transition">
+            <input type="checkbox" value="${l.code}" class="crawl-target-lang-cb accent-blue-600 dark:accent-[#f0b90b]" ${isChecked}> ${l.flag} ${l.name}
+        </label>
+        `;
+    }).join('');
+
+    document.getElementById('crawlSourceMapping').value = JSON.stringify(c.mapping || {}, null, 2);
+    document.getElementById('crawlSourceModal').classList.add('active');
+}
+
+async function saveCrawlSource() {
+    const id = document.getElementById('crawlSourceId').value;
+    const name = document.getElementById('crawlSourceName').value.trim();
+    const url = document.getElementById('crawlSourceUrl').value.trim();
+    const sourceLang = document.getElementById('crawlSourceLang').value;
+    const targetLangs = Array.from(document.querySelectorAll('.crawl-target-lang-cb:checked')).map(cb => cb.value);
+    const mappingStr = document.getElementById('crawlSourceMapping').value;
+
+    if (!name || !url) return alert('请填写名称和URL');
+    
+    let mapping;
+    try { mapping = JSON.parse(mappingStr); } catch(e) { return alert('JSON 格式错误，请检查语法'); }
+
+    const payload = { name, url, sourceLang, targetLangs, mapping };
+    const method = id ? 'PUT' : 'POST';
+    const apiUrl = id ? `/api/admin/crawl/source/${id}` : '/api/admin/crawl/source';
+
+    const res = await fetch(apiUrl, {
+        method,
+        headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+        body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+        document.getElementById('crawlSourceModal').classList.remove('active');
+        fetchData();
+    } else {
+        alert('保存失败');
+    }
+}
+
+async function deleteCrawlSource(index) {
+    const c = globalCrawlConfigs[index];
+    if (!c || !confirm(`确定删除采集源【${c.name}】吗？`)) return;
+    await fetch(`/api/admin/crawl/source/${c.id}`, { method: 'DELETE', headers: { 'x-admin-pwd': adminPwd } });
+    fetchData();
+}
+
 async function saveCrawlConfig() {
     const enabled = document.getElementById('crawlEnabled').checked;
     const interval = document.getElementById('crawlInterval').value;
     const limit = document.getElementById('crawlLimit').value;
-    const codeConfig = document.getElementById('crawlConfigCode').value;
-
-    try { JSON.parse(codeConfig); } catch (e) { return alert('JSON 格式错误，请检查语法'); }
 
     await fetch('/api/admin/crawl', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
-        body: JSON.stringify({ enabled, interval, limit, codeConfig })
+        body: JSON.stringify({ enabled, interval, limit })
     });
-    alert('采集配置已保存');
+    alert('全局配置已保存');
     fetchData();
 }
 
@@ -174,10 +293,10 @@ async function crawlNow() {
         const res = await fetch('/api/admin/crawl/now', { method: 'POST', headers: { 'x-admin-pwd': adminPwd } });
         const data = await res.json();
         if (data.success) {
-            alert(`成功采集 ${data.count} 篇文章 ${data.failCount > 0 ? `(其中 ${data.failCount} 篇因翻译失败仅保留原语种)` : ''}`);
+            alert(`成功采集 ${data.count} 篇文章 ${data.failCount > 0 ? `(其中 ${data.failCount} 篇翻译失败)` : ''}`);
             fetchData(); 
         } else {
-            alert('采集失败: ' + (data.error || '未知错误，请检查接口返回格式'));
+            alert('采集失败: ' + (data.error || '未知错误'));
         }
     } catch (e) {
         alert('网络或服务器错误: ' + e.message);
@@ -191,7 +310,7 @@ function renderCrawledArticles() {
     if (!list) return;
 
     const filterDate = document.getElementById('crawlFilterDate')?.value;
-    let articles = allArticles.filter(a => a.lang === 'en'); 
+    let articles = allArticles.filter(a => a.lang === 'en' || a.lang === 'zh'); 
 
     if (filterDate) {
         articles = articles.filter(a => a.time.startsWith(filterDate));
