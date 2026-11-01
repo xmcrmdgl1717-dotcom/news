@@ -58,37 +58,17 @@ Object.keys(DB_FILES).forEach(key => {
     }
 });
 
-// 🚨 强制修复语言文件：确保中英文存在，且都有 active 字段
+// 强制修复语言文件：确保中英文存在
 try {
     let langs = JSON.parse(fs.readFileSync(DB_FILES.languages, 'utf8'));
     let updated = false;
     if (!Array.isArray(langs)) { langs = []; updated = true; }
-    
-    // 强制加入中文
-    if (!langs.find(l => l.code === 'zh')) {
-        langs.push({ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT });
-        updated = true;
-    }
-    // 强制加入英文
-    if (!langs.find(l => l.code === 'en')) {
-        langs.push({ code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} });
-        updated = true;
-    }
-    // 补全 active 字段
-    langs.forEach(l => {
-        if (l.active === undefined) { l.active = true; updated = true; }
-    });
-
-    if (updated) {
-        fs.writeFileSync(DB_FILES.languages, JSON.stringify(langs, null, 2));
-        console.log('已强制修复多语言配置，确保中英文存在且启用');
-    }
+    if (!langs.find(l => l.code === 'zh')) { langs.push({ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }); updated = true; }
+    if (!langs.find(l => l.code === 'en')) { langs.push({ code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }); updated = true; }
+    langs.forEach(l => { if (l.active === undefined) { l.active = true; updated = true; } });
+    if (updated) fs.writeFileSync(DB_FILES.languages, JSON.stringify(langs, null, 2));
 } catch (e) {
-    console.error('语言文件修复失败，重新生成', e);
-    const defaultLangs = [
-        { code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, 
-        { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }
-    ];
+    const defaultLangs = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }];
     fs.writeFileSync(DB_FILES.languages, JSON.stringify(defaultLangs, null, 2));
 }
 
@@ -112,11 +92,7 @@ async function translateText(textArray, targetLang, sourceLang = null) {
     const params = new URLSearchParams();
     textArray.forEach(text => params.append('text', text || ''));
     params.append('target_lang', targetCode);
-    
-    // 如果传了 sourceLang 则用，没传则不传，让 DeepL 自动识别源语言
-    if (sourceLang) {
-        params.append('source_lang', sourceLang.toUpperCase());
-    }
+    if (sourceLang) params.append('source_lang', sourceLang.toUpperCase());
     
     try {
         const response = await axios.post(url, params, { headers: { 'Authorization': `DeepL-Auth-Key ${apiKey}`, 'Content-Type': 'application/x-www-form-urlencoded' } });
@@ -159,17 +135,29 @@ async function fetchAndTranslateTracking() {
     } catch (e) { console.error('追踪生成失败', e); }
 }
 
-// 支持传入 configId 单独采集
-async function crawlNews(isManual = false, configId = null) {
+// 采集核心逻辑
+async function crawlNews(isManual = false, configId = null, isAutoGlobal = false) {
     let config = readDB('crawl');
     const now = Date.now();
     
+    // 自动采集逻辑判断
     if (!isManual) {
-        if (!config.enabled || (now - (config.lastCrawlTime || 0) < (config.interval * 60000))) return { success: false, error: '自动采集未开启或未到时间' };
+        if (isAutoGlobal) {
+            // 全局自动：检查全局时间
+            if (now - (config.lastCrawlTime || 0) < (config.interval * 60000)) return { success: false, error: '全局采集未到时间' };
+            config.lastCrawlTime = now;
+            writeDB('crawl', config);
+        } else {
+            // 单源自动：直接采，因为在外层循环里已经判断过时间和独立开启了
+            if (configId) {
+                const idx = config.configs.findIndex(c => c.id === configId);
+                if (idx > -1) {
+                    config.configs[idx].lastCrawlTime = now;
+                    writeDB('crawl', config);
+                }
+            }
+        }
     }
-
-    config.lastCrawlTime = now;
-    writeDB('crawl', config);
 
     let totalCount = 0;
     let totalFailCount = 0;
@@ -235,8 +223,7 @@ async function crawlNews(isManual = false, configId = null) {
                 const groupId = uuidv4();
                 const isoTime = new Date(pubDate).toISOString();
 
-                // 存入时，因为我们不知道源语言，暂时存入 'original'，或者默认存 'en' 以便前台展示。
-                // 既然用户说无所谓源头，我们就存原始版本到一个隐藏语言或英文下。
+                // 存入原文（标记为 original）
                 articles.push({ id: uuidv4(), groupId, lang: 'original', type, title, summary, content, coverUrl, author, time: isoTime });
                 existingTitles.add(title); 
 
@@ -244,7 +231,7 @@ async function crawlNews(isManual = false, configId = null) {
                 const targetLangs = cfg.targetLangs || [];
                 for (let l of targetLangs) {
                     try {
-                        // 注意这里没有传 sourceLang，DeepL 会自动识别
+                        // 自动识别源语言翻译
                         const tTitle = await translateText([title], l);
                         const tSummary = await translateText([summary], l);
                         const tContent = await translateText([content], l);
@@ -268,9 +255,31 @@ async function crawlNews(isManual = false, configId = null) {
     return { success: true, count: totalCount, failCount: totalFailCount };
 }
 
+// 定时任务：每分钟检查一次
 setInterval(() => {
-    if (readDB('tracking').interval > 0) fetchAndTranslateTracking();
-    if (readDB('crawl').enabled) crawlNews();
+    const tracking = readDB('tracking');
+    if (tracking.interval > 0) fetchAndTranslateTracking();
+    
+    const crawl = readDB('crawl');
+    const now = Date.now();
+
+    // 1. 如果全局全自动开启（图三权限最大）
+    if (crawl.enabled) {
+        if (now - (crawl.lastCrawlTime || 0) >= (crawl.interval * 60000)) {
+            crawlNews(false, null, true);
+        }
+    } 
+    // 2. 如果全局全自动关闭，检查单源独立自动采集
+    else {
+        (crawl.configs || []).forEach(cfg => {
+            if (cfg.autoEnabled) {
+                // 如果该源距离上次采集超过了全局设定的间隔，则采集
+                if (now - (cfg.lastCrawlTime || 0) >= (crawl.interval * 60000)) {
+                    crawlNews(false, cfg.id, false);
+                }
+            }
+        });
+    }
 }, 60000);
 
 app.use(express.json({ limit: '10mb' }));
@@ -352,11 +361,33 @@ app.get('/api/admin/data', auth, (req, res) => {
     });
 });
 
-// 支持传入单一 configId 进行采集
+// 🚨 补全：多语言字典一键翻译
+app.post('/api/admin/languages/translate-dict', auth, async (req, res) => {
+    const { targetLang } = req.body;
+    const langs = readDB('languages');
+    const langIdx = langs.findIndex(l => l.code === targetLang);
+    if (langIdx === -1) return res.status(404).json({ error: '语言不存在' });
+
+    try {
+        const keys = Object.keys(BASE_DICT);
+        const values = Object.values(BASE_DICT);
+        // 将中文的 BASE_DICT 翻译成目标语言
+        const translatedValues = await translateText(values, targetLang, 'ZH');
+        const newDict = {};
+        keys.forEach((k, i) => { newDict[k] = translatedValues[i]; });
+
+        langs[langIdx].dict = { ...(langs[langIdx].dict || {}), ...newDict };
+        writeDB('languages', langs);
+        res.json({ success: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.post('/api/admin/crawl/now', auth, async (req, res) => {
     try { 
         const configId = req.body.configId || null;
-        res.json(await crawlNews(true, configId)); 
+        res.json(await crawlNews(true, configId, false)); 
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
 });
 
@@ -370,7 +401,7 @@ app.put('/api/admin/crawl', auth, (req, res) => {
 app.post('/api/admin/crawl/source', auth, (req, res) => {
     let crawl = readDB('crawl');
     if (!crawl.configs) crawl.configs = [];
-    crawl.configs.push({ id: uuidv4(), ...req.body });
+    crawl.configs.push({ id: uuidv4(), autoEnabled: false, lastCrawlTime: 0, ...req.body });
     writeDB('crawl', crawl); res.json({ success: true });
 });
 app.put('/api/admin/crawl/source/:id', auth, (req, res) => {
