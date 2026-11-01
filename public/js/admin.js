@@ -167,6 +167,27 @@ function ensureCoverPreview() {
     }
 }
 
+// ================= 清除图片功能 =================
+function clearSiteLogo() {
+    document.getElementById('siteLogoUrl').value = '';
+    document.getElementById('siteLogoFile').value = '';
+}
+
+function clearArticleCover() {
+    document.getElementById('artCoverUrl').value = '';
+    document.getElementById('artCoverFile').value = '';
+    const img = document.getElementById('artCoverPreview');
+    if (img) img.style.display = 'none'; // 隐藏图片预览
+}
+
+function clearEditArticleCover() {
+    document.getElementById('editArtCoverUrl').value = '';
+    document.getElementById('editArtCoverFile').value = '';
+    const img = document.getElementById('editArtCoverPreview');
+    if (img) img.style.display = 'none'; // 隐藏图片预览
+}
+// ================================================
+
 function injectArticleFilters() {
     const artBtnGroup = document.querySelector('#tab-articles .flex.flex-wrap.justify-between.items-center.mb-4.gap-2 .flex.items-center.gap-2');
     if (!artBtnGroup || document.getElementById('artFilterStartDate')) return;
