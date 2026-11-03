@@ -70,6 +70,8 @@
             <div class="menu-item" onclick="switchTab('tracking', this)">📡 链上追踪管理</div>
             <div class="menu-item" onclick="switchTab('languages', this)">🌐 多语言管理</div>
             <div class="menu-item" onclick="switchTab('translogs', this)">📈 翻译汇总</div>
+            <!-- 新增：一键翻译菜单 -->
+            <div class="menu-item" onclick="switchTab('translate-all', this)">🌐 一键翻译</div>
             <div class="menu-item" onclick="switchTab('settings', this)">⚙️ 系统设置</div>
         </nav>
         
@@ -161,6 +163,7 @@
                                 <div class="flex items-center gap-2">
                                     <input type="file" id="artCoverFile" accept="image/*" class="input text-sm">
                                     <input type="text" id="artCoverUrl" placeholder="图片URL" class="input text-sm" readonly>
+                                    <button type="button" onclick="clearArticleCover()" class="px-3 py-2 bg-red-100 text-red-600 rounded-lg text-sm font-bold hover:bg-red-200 transition shrink-0">清除</button>
                                 </div>
                             </div>
                             <div class="bg-white rounded-lg"><div id="editor-container"></div></div>
@@ -369,11 +372,80 @@
                 </div>
             </div>
 
+            <!-- 一键翻译 -->
+            <div id="tab-translate-all" class="content-section">
+                <!-- 顶部全局操作卡片 -->
+                <div class="card p-6 mb-6 border-l-4 border-blue-500">
+                    <div class="flex justify-between items-center flex-wrap gap-4">
+                        <div>
+                            <h3 class="text-lg font-bold mb-1" style="color: var(--cms-text-main);">🚀 全局一键翻译 (全国家)</h3>
+                            <p class="text-sm" style="color: var(--cms-text-muted);">自动检测系统内所有未翻译的<strong>文章、采集、系统配置、字典</strong>，并调用 DeepL 补全。</p>
+                            <p class="text-xs text-red-500 mt-2">⚠️ 注意：此操作可能会消耗大量 API 额度，请确保已配置有效的 DeepL Key。</p>
+                        </div>
+                        <button onclick="globalTranslateAll(this)" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-bold shadow-lg transition">
+                            ⚡ 执行全局补全
+                        </button>
+                    </div>
+                    <!-- 进度条容器 -->
+                    <div id="globalTranslateProgress" class="mt-4 hidden">
+                        <div class="text-sm text-blue-500 mb-1" id="globalProgressText">正在准备翻译...</div>
+                        <div class="w-full bg-gray-200 rounded-full h-2 dark:bg-gray-700">
+                            <div id="globalProgressBar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 各个模块的独立状态卡片 -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- 系统配置 -->
+                    <div class="card p-6">
+                        <h4 class="font-bold mb-3 border-b pb-2" style="border-color: var(--cms-border); color: var(--cms-text-main);">⚙️ 系统配置翻译</h4>
+                        <div class="text-sm mb-4 h-10" id="status-settings" style="color: var(--cms-text-muted);">正在检测...</div>
+                        <button onclick="oneClickTranslateAll(this)" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition">一键补全系统配置</button>
+                    </div>
+
+                    <!-- 多语言字典 -->
+                    <div class="card p-6">
+                        <h4 class="font-bold mb-3 border-b pb-2" style="border-color: var(--cms-border); color: var(--cms-text-main);">📖 多语言字典翻译</h4>
+                        <div class="text-sm mb-4 h-10" id="status-langs" style="color: var(--cms-text-muted);">正在检测...</div>
+                        <button onclick="translateAllDicts(this)" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition">一键补全基础字典</button>
+                    </div>
+
+                    <!-- 手动发布文章 -->
+                    <div class="card p-6">
+                        <h4 class="font-bold mb-3 border-b pb-2" style="border-color: var(--cms-border); color: var(--cms-text-main);">📝 文章管理翻译</h4>
+                        <div class="text-sm mb-4 h-10" id="status-articles" style="color: var(--cms-text-muted);">正在检测...</div>
+                        <button onclick="batchTranslateArticles()" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition">补全全部文章缺失语言</button>
+                    </div>
+
+                    <!-- 采集文章 -->
+                    <div class="card p-6">
+                        <h4 class="font-bold mb-3 border-b pb-2" style="border-color: var(--cms-border); color: var(--cms-text-main);">🕷️ 采集文章翻译</h4>
+                        <div class="text-sm mb-4 h-10" id="status-crawl" style="color: var(--cms-text-muted);">正在检测...</div>
+                        <button onclick="batchTranslateCrawled()" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition">补全采集文章缺失语言</button>
+                    </div>
+
+                    <!-- 链上追踪 -->
+                    <div class="card p-6">
+                        <h4 class="font-bold mb-3 border-b pb-2" style="border-color: var(--cms-border); color: var(--cms-text-main);">🛰️ 链上追踪翻译</h4>
+                        <div class="text-sm mb-4 h-10" id="status-tracking" style="color: var(--cms-text-muted);">正在检测...</div>
+                        <button onclick="checkTrackingStatus()" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded text-sm transition">查看追踪翻译状态</button>
+                    </div>
+                </div>
+            </div>
+
             <!-- 系统设置 -->
             <div id="tab-settings" class="content-section">
                 <div class="card p-6 max-w-4xl mb-6">
-                    <h3 class="font-bold text-lg mb-4">网站基础设置</h3>
                     
+                    <!-- 🚨 这里加入了一键翻译按钮 -->
+                    <div class="flex justify-between items-center mb-4 border-b pb-3" style="border-color: var(--cms-border);">
+                        <h3 class="font-bold text-lg" style="color: var(--cms-text-main);">网站及工具全局配置</h3>
+                        <button onclick="oneClickTranslateAll(this)" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-lg font-bold text-sm shadow transition flex items-center gap-2">
+                            ⚡ 一键翻译所有未翻译配置
+                        </button>
+                    </div>
+
                     <div class="space-y-4 mb-6 border-b pb-4" style="border-color: var(--cms-border);">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -506,7 +578,7 @@
         </div>
     </div>
 
-    <div id="editArticleModal" class="modal"><div class="card p-6 w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden"><div class="flex justify-between items-center mb-4 border-b pb-3" style="border-color: var(--cms-border);"><h3 class="font-bold text-xl" style="color: var(--cms-accent);">编辑文章</h3><button onclick="closeEditModal()" class="text-gray-500 hover:text-red-500 text-2xl leading-none">&times;</button></div><div class="flex-1 overflow-y-auto pr-2 space-y-4" id="editArticleFormContent"><input type="hidden" id="editArticleGroupId"><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">所属板块</label><select id="editArtType" class="input"></select></div></div><div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);"><p class="text-sm font-bold mb-2" style="color: var(--cms-text-muted);">多语言翻译状态：</p><div class="flex gap-4 flex-wrap" id="editArticleLangCheckboxes"></div></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源标题</label><input type="text" id="editArtTitle" class="input w-full"></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源摘要</label><textarea id="editArtSummary" class="input w-full" rows="2"></textarea></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">文章封面图</label><div class="flex items-center gap-2"><input type="file" id="editArtCoverFile" accept="image/*" class="input text-sm"><input type="text" id="editArtCoverUrl" placeholder="图片URL" class="input text-sm" readonly></div></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">文章正文</label><div class="bg-white rounded-lg"><div id="edit-editor-container"></div></div></div></div><div class="mt-4 pt-4 border-t flex justify-end gap-3" style="border-color: var(--cms-border);"><button onclick="closeEditModal()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-border); color: var(--cms-text-main);">取消</button><button onclick="submitEditArticle()" id="editArticleSubmitBtn" class="px-6 py-2 rounded font-bold transition hover:opacity-90" style="background-color: var(--cms-accent); color: #000;">保存修改并翻译</button></div></div></div>
+    <div id="editArticleModal" class="modal"><div class="card p-6 w-full max-w-4xl max-h-[95vh] flex flex-col overflow-hidden"><div class="flex justify-between items-center mb-4 border-b pb-3" style="border-color: var(--cms-border);"><h3 class="font-bold text-xl" style="color: var(--cms-accent);">编辑文章</h3><button onclick="closeEditModal()" class="text-gray-500 hover:text-red-500 text-2xl leading-none">&times;</button></div><div class="flex-1 overflow-y-auto pr-2 space-y-4" id="editArticleFormContent"><input type="hidden" id="editArticleGroupId"><div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">所属板块</label><select id="editArtType" class="input"></select></div></div><div class="p-3 rounded border" style="border-color: var(--cms-border); background-color: rgba(128,128,128,0.05);"><p class="text-sm font-bold mb-2" style="color: var(--cms-text-muted);">多语言翻译状态：</p><div class="flex gap-4 flex-wrap" id="editArticleLangCheckboxes"></div></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源标题</label><input type="text" id="editArtTitle" class="input w-full"></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">源摘要</label><textarea id="editArtSummary" class="input w-full" rows="2"></textarea></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">文章封面图</label><div class="flex items-center gap-2"><input type="file" id="editArtCoverFile" accept="image/*" class="input text-sm"><input type="text" id="editArtCoverUrl" placeholder="图片URL" class="input text-sm" readonly><button type="button" onclick="clearEditArticleCover()" class="px-3 py-2 bg-red-100 text-red-600 rounded-lg text-sm font-bold hover:bg-red-200 transition shrink-0">清除</button></div></div><div><label class="block text-sm font-bold mb-1" style="color: var(--cms-text-muted);">文章正文</label><div class="bg-white rounded-lg"><div id="edit-editor-container"></div></div></div></div><div class="mt-4 pt-4 border-t flex justify-end gap-3" style="border-color: var(--cms-border);"><button onclick="closeEditModal()" class="px-6 py-2 rounded font-bold transition" style="background-color: var(--cms-border); color: var(--cms-text-main);">取消</button><button onclick="submitEditArticle()" id="editArticleSubmitBtn" class="px-6 py-2 rounded font-bold transition hover:opacity-90" style="background-color: var(--cms-accent); color: #000;">保存修改并翻译</button></div></div></div>
     
     <div id="editLangModal" class="modal"><div class="card p-6 w-full max-w-4xl max-h-[90vh] flex flex-col"><h3 class="font-bold text-lg mb-4" style="color: var(--cms-accent);">编辑语言字典</h3><input type="hidden" id="editLangCode"><textarea id="editLangDict" class="input flex-1 p-3 font-mono text-sm mb-4" rows="15"></textarea><div class="flex gap-2 justify-end"><button onclick="saveLangDict()" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-accent); color: #000;">保存</button><button onclick="document.getElementById('editLangModal').classList.remove('active')" class="px-6 py-2 rounded font-bold" style="background-color: var(--cms-border);">取消</button></div></div></div>
     

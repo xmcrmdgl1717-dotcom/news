@@ -26,9 +26,13 @@ const DB_FILES = {
 };
 
 const BASE_DICT = {
-    siteTitle: "链安快讯", navHome: "首页", navEvents: "安全事件", navTrack: "链上追踪",
-    loading: "正在加载...", noMore: "—— 已经到底啦 ——", noData: "暂无相关数据",
-    catAll: "全部事件", toolTitle: "免费检测地址是否安全", toolPlaceholder: "输入任何链上地址...", toolBtn: "立即检测", 
+    siteTitle: "链安快讯", navHome: "首页", navEvents: "最新事件", navTrack: "危险地址",
+    loading: "正在加载...", noMore: "查看更多", noData: "暂无相关数据",
+    catAll: "全部事件", 
+    toolTitle: "免费检测地址是否安全", 
+    toolPlaceholder: "输入任何链上地址...", 
+    toolDisc: "* 由于安全事故频发，市安公司免费提供地址安全检测，任何地址都能检测",
+    toolBtn: "立即检测", 
     toolLoading: "比对中...", toolReset: "重新检测 ✕",
     checkingTitle: "正在检测中...", checkingDesc: "请勿关闭，系统正在深度比对链上黑名单数据库",
     resSafe: "✅ 未检测出异常", resSafeDesc: "该地址暂未发现风险。", 
@@ -52,7 +56,7 @@ Object.keys(DB_FILES).forEach(key => {
             siteDesc: { zh: 'Web3安全资讯' },
             toolTitle: { zh: '免费检测地址是否安全' },
             toolPlaceholder: { zh: '输入任何链上地址...' },
-            toolDesc: { zh: "* 本模块为前端安全演示UI，检测结果由随机算法生成。" } 
+            toolDesc: { zh: "* 由于安全事故频发，市安公司免费提供地址安全检测，任何地址都能检测" } 
         };
         if (key === 'categories') initialData = [{ id: 'hack', name_zh: '黑客攻击', name_en: 'Hacks' }, { id: 'scam', name_zh: '钓鱼诈骗', name_en: 'Scams' }];
         if (key === 'languages') initialData = [
@@ -73,7 +77,23 @@ try {
     if (!Array.isArray(langs)) { langs = []; updated = true; }
     if (!langs.find(l => l.code === 'zh')) { langs.push({ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }); updated = true; }
     if (!langs.find(l => l.code === 'en')) { langs.push({ code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }); updated = true; }
-    langs.forEach(l => { if (l.active === undefined) { l.active = true; updated = true; } });
+    
+    langs.forEach(l => { 
+        if (l.active === undefined) { l.active = true; updated = true; }
+        // 强制覆盖旧数据
+        if (l.dict) {
+            if (l.dict.noMore === '—— 已经到底啦 ——') {
+                l.dict.noMore = '查看更多';
+                updated = true;
+            }
+            if (l.code === 'zh') {
+                if (l.dict.toolDisc !== BASE_DICT.toolDisc) { 
+                    l.dict.toolDisc = BASE_DICT.toolDisc; 
+                    updated = true; 
+                }
+            }
+        }
+    });
     if (updated) fs.writeFileSync(DB_FILES.languages, JSON.stringify(langs, null, 2));
 } catch (e) {
     const defaultLangs = [{ code: 'zh', name: '简体中文', flag: '🇨🇳', active: true, dict: BASE_DICT }, { code: 'en', name: 'English', flag: '🇺🇸', active: true, dict: {} }];

@@ -245,6 +245,8 @@ function switchTab(tabId, el) {
     if (tabId === 'translogs') { loadTranslationLogs(); }
     if (tabId === 'crawl') renderCrawledArticles();
     if (tabId === 'settings') { loadDeepLUsage('sys'); }
+    // 【整合点】进入“一键翻译面板”时刷新状态
+    if (tabId === 'translate-all') { renderTranslateDashboard(); }
 }
 
 function initLangCodeTable() {
@@ -330,6 +332,9 @@ async function fetchData() {
     populateFilterOptions();
     calculateStats();
     applyFilters();
+
+    // 【整合点】数据刷新后同步刷新“一键翻译面板”状态
+    if (document.getElementById('status-settings')) renderTranslateDashboard();
 }
 
 // 渲染语言列表 (确保包含一键翻译)
@@ -470,6 +475,82 @@ async function saveSettings() {
         const res = await fetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ deeplKey1, deeplKey2, autoLang, checkWaitTime, enableAddressCheck }) });
         if (res.ok) { alert('系统配置已保存！'); fetchData(); loadDeepLUsage('sys'); } else { const data = await res.json(); alert('保存失败: ' + (data.error || '未知错误')); }
     } catch(e) { alert('网络错误'); } finally { btn.innerText = old; btn.disabled = false; }
+}
+
+// ================= 一键翻译全部未翻译配置 =================
+async function oneClickTranslateAll(btn) {
+    // 1. 获取所有的源文本
+    const siteTitleZh = document.getElementById('siteTitleZh').value.trim();
+    const siteDescZh = document.getElementById('siteDescZh').value.trim();
+    const toolTitleZh = document.getElementById('toolTitleZh').value.trim();
+    const toolPlaceholderZh = document.getElementById('toolPlaceholderZh').value.trim();
+    const toolDescZh = document.getElementById('toolDescZh').value.trim();
+
+    if (!siteTitleZh || !toolTitleZh) {
+        return alert('请至少填写“网站标题”和“检测窗标题”后再进行一键翻译！');
+    }
+
+    // 2. 收集所有未勾选的语言（未勾选代表未翻译或需要重新翻译）
+    // 注意：中文默认为 disabled 且 checked，这里只抓取未勾选的其他语言
+    const siteLangs = Array.from(document.querySelectorAll('.site-info-lang-cb:not(:checked)')).map(cb => cb.value);
+    const toolTitleLangs = Array.from(document.querySelectorAll('.tool-title-lang-cb:not(:checked)')).map(cb => cb.value);
+    const toolPlaceholderLangs = Array.from(document.querySelectorAll('.tool-placeholder-lang-cb:not(:checked)')).map(cb => cb.value);
+    const toolDescLangs = Array.from(document.querySelectorAll('.tool-desc-lang-cb:not(:checked)')).map(cb => cb.value);
+
+    // 合并所有需要翻译的目标语言（去重）
+    const allTargetLangs = [...new Set([...siteLangs, ...toolTitleLangs, ...toolPlaceholderLangs, ...toolDescLangs])];
+
+    if (allTargetLangs.length === 0) {
+        return alert('当前所有启用的语言均已翻译完成，无需再次操作！');
+    }
+
+    if (!confirm(`系统检测到有 ${allTargetLangs.length} 种语言存在未翻译的配置项，是否立即调用 DeepL 进行补全翻译？\n\n(此操作会消耗 API 额度)`)) {
+        return;
+    }
+
+    // 3. 组装请求数据
+    const body = {
+        siteTitleZh: siteTitleZh,
+        siteDescZh: siteDescZh,
+        toolTitleZh: toolTitleZh,
+        toolPlaceholderZh: toolPlaceholderZh,
+        toolDescZh: toolDescZh,
+        
+        // 使用未勾选的语言列表作为目标语言数组
+        targetLangs: [...new Set([...siteLangs, ...toolDescLangs])], 
+        toolTitleTargetLangs: toolTitleLangs,
+        toolPlaceholderTargetLangs: toolPlaceholderLangs
+    };
+
+    // 防止有某些字段为空但强制传空字符串导致翻译出错
+    if (!siteDescZh) delete body.siteDescZh;
+    if (!toolDescZh) delete body.toolDescZh;
+
+    // 4. 发送请求
+    const oldText = btn.innerHTML;
+    btn.innerHTML = '⚡ 翻译中，请稍候...';
+    btn.disabled = true;
+
+    try {
+        const res = await fetch('/api/admin/settings', { 
+            method: 'PUT', 
+            headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
+            body: JSON.stringify(body) 
+        });
+        
+        if (res.ok) {
+            alert('一键翻译并保存成功！');
+            fetchData(); // 刷新页面数据
+        } else {
+            const data = await res.json();
+            alert('翻译失败: ' + (data.error || '未知错误'));
+        }
+    } catch (e) {
+        alert('网络错误: ' + e.message);
+    } finally {
+        btn.innerHTML = oldText;
+        btn.disabled = false;
+    }
 }
 
 async function toggleLangStatus(code, currentActive) {
@@ -1146,4 +1227,194 @@ async function savePassword() {
     const newPwd = document.getElementById('newPwdInput').value; if(!newPwd) return alert('密码不能为空');
     const res = await fetch('/api/admin/password', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, body: JSON.stringify({ newPassword: newPwd }) });
     if(res.ok) { alert('密码修改成功，请重新登录'); sessionStorage.removeItem('wad_admin_pwd'); location.reload(); }
+}
+
+// ==================== 一键翻译面板专用逻辑 ====================
+
+// 1. 获取各模块未翻译的状态并渲染
+function renderTranslateDashboard() {
+    if (!document.getElementById('status-settings')) return;
+
+    // A. 检测系统配置缺失
+    const activeLangs = allLangs.filter(l => l.active).map(l => l.code);
+    const checkSettingLang = (obj) => {
+        if (!obj) return true;
+        return activeLangs.some(code => !obj[code]);
+    };
+    const settingsMissing = checkSettingLang(globalSettings.siteTitle) || 
+                            checkSettingLang(globalSettings.toolTitle) || 
+                            checkSettingLang(globalSettings.toolPlaceholder) ||
+                            checkSettingLang(globalSettings.toolDesc);
+    document.getElementById('status-settings').innerHTML = settingsMissing 
+        ? '<span class="text-red-400">检测到缺失的标题/描述翻译</span>' 
+        : '<span class="text-green-400">✅ 基础配置已全语言覆盖</span>';
+
+    // B. 检测字典缺失
+    let dictMissingCount = 0;
+    allLangs.forEach(l => {
+        if (l.active && (!l.dict || Object.keys(l.dict).length < 5)) dictMissingCount++;
+    });
+    document.getElementById('status-langs').innerHTML = dictMissingCount > 0
+        ? `<span class="text-red-400">发现 ${dictMissingCount} 个语言字典未翻译</span>`
+        : '<span class="text-green-400">✅ 所有启用的字典均已翻译</span>';
+
+    // C. 检测文章缺失 (分组检测)
+    let articleMissingGroups = 0;
+    const groups = {};
+    allArticles.forEach(a => { if(!groups[a.groupId]) groups[a.groupId] = []; groups[a.groupId].push(a); });
+    Object.values(groups).forEach(group => {
+        const groupLangs = group.map(a => a.lang);
+        if (activeLangs.some(code => !groupLangs.includes(code))) articleMissingGroups++;
+    });
+    document.getElementById('status-articles').innerHTML = articleMissingGroups > 0
+        ? `<span class="text-red-400">发现 ${articleMissingGroups} 组文章缺少语言版本</span>`
+        : '<span class="text-green-400">✅ 文章已全语言覆盖</span>';
+
+    // D. 检测采集缺失
+    let crawlMissingGroups = 0;
+    const cGroups = {};
+    allArticles.filter(a => a.lang === 'original' || a.lang === 'en').forEach(a => { if(!cGroups[a.groupId]) cGroups[a.groupId] = []; cGroups[a.groupId].push(a); });
+    Object.values(cGroups).forEach(group => {
+        const groupLangs = allArticles.filter(a => a.groupId === group[0].groupId).map(a => a.lang);
+        if (activeLangs.some(code => !groupLangs.includes(code))) crawlMissingGroups++;
+    });
+    document.getElementById('status-crawl').innerHTML = crawlMissingGroups > 0
+        ? `<span class="text-red-400">发现 ${crawlMissingGroups} 组采集文章缺少语言</span>`
+        : '<span class="text-green-400">✅ 采集文章已全语言覆盖</span>';
+
+    // E. 追踪状态
+    const autoT = globalTrackingConfig.autoTranslate !== false;
+    document.getElementById('status-tracking').innerHTML = autoT
+        ? '<span class="text-green-400">✅ 追踪记录自动翻译已开启</span>'
+        : '<span class="text-yellow-400">⚠️ 追踪记录自动翻译已关闭</span>';
+}
+
+// 2. 独立翻译：多语言字典
+async function translateAllDicts(btn) {
+    const activeLangs = allLangs.filter(l => l.active);
+    const missingLangs = activeLangs.filter(l => !l.dict || Object.keys(l.dict).length < 5);
+    if (missingLangs.length === 0) return alert('所有启用的语言字典均已齐全，无需翻译。');
+    
+    if (!confirm(`发现 ${missingLangs.length} 个语言的基础字典缺失，是否立即调用 DeepL 补全？`)) return;
+
+    const oldText = btn.innerHTML; btn.innerHTML = '翻译中...'; btn.disabled = true;
+    let success = 0, fail = 0;
+
+    for (let lang of missingLangs) {
+        try {
+            const res = await fetch('/api/admin/languages/translate-dict', { 
+                method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
+                body: JSON.stringify({ targetLang: lang.code }) 
+            });
+            if (res.ok) success++; else fail++;
+        } catch(e) { fail++; }
+    }
+    
+    btn.innerHTML = oldText; btn.disabled = false;
+    alert(`字典翻译完成！成功: ${success}，失败: ${fail}`);
+    fetchData();
+}
+
+// 3. 独立翻译：追踪状态检查
+function checkTrackingStatus() {
+    if (globalTrackingConfig.autoTranslate !== false) {
+        alert('链上追踪的自动翻译已开启。\n当系统抓取到新的追踪地址时，会自动调用 DeepL 翻译，无需手动干预。');
+    } else {
+        if (confirm('链上追踪自动翻译处于关闭状态。是否立即前往设置开启？')) {
+            // 模拟点击左侧菜单跳转
+            const menu = document.querySelector('.menu-item[onclick*="settings"]');
+            if (menu) menu.click();
+        }
+    }
+}
+
+// 4. 全局终极一键翻译 (串行执行)
+async function globalTranslateAll(btn) {
+    if (!confirm('【严重警告】\n即将执行全局一键翻译，系统将自动检测并补全所有缺失配置、字典和文章。\n此操作会消耗大量 DeepL API 额度，是否确认继续？')) return;
+
+    const progressContainer = document.getElementById('globalTranslateProgress');
+    const progressBar = document.getElementById('globalProgressBar');
+    const progressText = document.getElementById('globalProgressText');
+    if (!progressContainer || !progressBar || !progressText) {
+        return alert('页面缺少进度条容器，请检查 HTML 结构。');
+    }
+    
+    progressContainer.classList.remove('hidden');
+    btn.disabled = true; btn.innerHTML = '执行中，请勿关闭...';
+
+    const updateProgress = (percent, text) => {
+        progressBar.style.width = `${percent}%`;
+        progressText.innerText = text;
+    };
+
+    try {
+        // 阶段 1：系统配置
+        updateProgress(10, '正在补全系统基础配置...');
+        await new Promise(resolve => {
+            // 劫持原函数的 alert / confirm，避免弹窗阻塞流程
+            const originAlert = window.alert;
+            const originConfirm = window.confirm;
+            window.alert = () => {};
+            window.confirm = () => true;
+            Promise.resolve()
+                .then(() => oneClickTranslateAll({ innerHTML: '', disabled: false }))
+                .catch(() => {})
+                .finally(() => {
+                    window.alert = originAlert;
+                    window.confirm = originConfirm;
+                    resolve();
+                });
+        });
+
+        // 阶段 2：多语言字典
+        updateProgress(30, '正在补全多语言字典...');
+        const activeLangs = allLangs.filter(l => l.active);
+        const missingLangs = activeLangs.filter(l => !l.dict || Object.keys(l.dict).length < 5);
+        if (missingLangs.length === 0) {
+            updateProgress(50, '字典已齐全，跳过...');
+        } else {
+            let dictCount = 0;
+            for (let lang of missingLangs) {
+                try {
+                    await fetch('/api/admin/languages/translate-dict', { 
+                        method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd }, 
+                        body: JSON.stringify({ targetLang: lang.code }) 
+                    });
+                } catch(e) {}
+                dictCount++;
+                updateProgress(30 + (dictCount / missingLangs.length * 20), `正在补全字典 (${dictCount}/${missingLangs.length})...`);
+            }
+        }
+
+        // 阶段 3：批量文章翻译
+        updateProgress(60, '正在补全文章缺失语言...');
+        const originAlert = window.alert;
+        window.alert = () => {};
+        try {
+            await fetch('/api/admin/articles/batch-translate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-admin-pwd': adminPwd },
+                body: JSON.stringify({})
+            });
+        } finally {
+            window.alert = originAlert;
+        }
+
+        // 阶段 4：刷新数据
+        updateProgress(90, '正在刷新数据...');
+        await fetchData();
+
+        updateProgress(100, '✅ 全局翻译完成！');
+        setTimeout(() => {
+            progressContainer.classList.add('hidden');
+            btn.disabled = false; btn.innerHTML = '⚡ 执行全局补全';
+            renderTranslateDashboard();
+            alert('全局一键翻译全部完成！');
+        }, 1500);
+
+    } catch (e) {
+        alert('全局翻译中断: ' + e.message);
+        progressContainer.classList.add('hidden');
+        btn.disabled = false; btn.innerHTML = '⚡ 执行全局补全';
+    }
 }
